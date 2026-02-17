@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+:root {
+  --board-dark: #779952;
+  --board-light: #edeed1;
+  --accent: #b58863;
+  --text-primary: #1a1a1a;
+  --text-secondary: #555;
+  --bg-primary: #fafaf8;
+  --bg-card: #ffffff;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
