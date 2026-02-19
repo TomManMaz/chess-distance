@@ -6,24 +6,40 @@ A web app that calculates the shortest "opponent path" between any two chess pla
 ## Tech Stack
 - **Framework:** Next.js 16 with App Router, TypeScript, Tailwind CSS v4
 - **Database:** PostgreSQL on Neon (serverless driver: `@neondatabase/serverless`)
-- **Deployment:** Vercel
-- **Data Source:** TWIC archive PGN files (~2.9M FIDE-rated games)
+- **Deployment:** Vercel (auto-deploys from GitHub `master`)
+- **Data Sources:** PGN Mentor (217 historical player files) + TWIC archive (issues 920–1089)
 
 ## Architecture
 - **Frontend:** React client components with autocomplete search and path visualization
-- **API Routes:** `/api/search` (trigram fuzzy search), `/api/distance` (BFS shortest path), `/api/stats`
-- **BFS:** Bidirectional BFS in application code (`lib/bfs.ts`), adjacency list cached in-memory
-- **ETL Pipeline:** `scripts/` directory — download TWIC PGNs, parse headers, build player graph in PostgreSQL
+- **API Routes:** `/api/search` (trigram fuzzy search), `/api/distance` (BFS shortest path), `/api/stats`, `/api/games`
+- **BFS:** Bidirectional BFS in application code (`lib/bfs.ts`), adjacency list cached in-memory for 1h
+- **ETL Pipeline:** `scripts/` — download PGN Mentor files + TWIC zips, parse, batch-insert into PostgreSQL
+
+## Current Database State
+- **88,060 players** (historical from 1850s + modern FIDE-rated players)
+- **698,791 opponent pairs** from 1,068,273 games
+- Morphy (1850s) is connected; Morphy → Carlsen distance = 6
+- Dummy/computer players (NN, Comp*) have been removed to prevent false short-circuit paths
 
 ## Key Commands
 ```bash
 npm run dev          # Start dev server (Turbopack)
 npm run build        # Production build
-npm run etl          # Run full ETL pipeline (download + parse + build-graph)
-npm run download-twic  # Download TWIC PGN zip files
-npm run parse-pgn      # Parse PGN headers to JSONL
-npm run build-graph    # Build graph in PostgreSQL from JSONL
+
+# ETL scripts (run in order for a fresh load):
+node scripts/load-historical.js   # Download pgnmentor + parse all PGNs (Phase 1+2)
+node scripts/batch-pairs.js       # Fast batch-insert opponent pairs (~45 seconds for 720K pairs)
+node scripts/cleanup-data.js      # Remove dummy players (NN, Comp*, etc.)
+
+# Utilities:
+node scripts/find-players.js      # Search PGN files for a player name
+node scripts/validate-data.js     # Check for cross-era data anomalies
 ```
+
+## Important Notes on Neon Driver
+- Use **tagged template literals**: `sql\`SELECT ...\``
+- For parameterized queries: `sql.query("SELECT $1", [value])` (NOT `sql("...", [...])`)
+- `channel_binding=require` must NOT be in the DATABASE_URL on Vercel (causes connection failures)
 
 ## Environment Variables
 - `DATABASE_URL` — Neon PostgreSQL connection string (in `.env.local`, gitignored)
