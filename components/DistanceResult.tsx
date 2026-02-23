@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import type { DistanceResult as DistanceResultType } from "@/lib/types";
+import type { DistanceResult as DistanceResultType, Player } from "@/lib/types";
 import { federationFlag } from "@/lib/federation-flag";
 
 interface DistanceResultProps {
@@ -152,9 +152,7 @@ export default function DistanceResult({ result }: DistanceResultProps) {
 
       {/* Chain: first player */}
       <div className="my-4">
-        <span className="text-lg font-bold text-[var(--board-dark)]">
-          {formatPlayerName(first.player.title, first.player.name, first.player.federation)}
-        </span>
+        <PlayerLink player={first.player} className="text-lg font-bold text-[var(--board-dark)]" />
       </div>
 
       {/* Toggle details */}
@@ -186,8 +184,8 @@ export default function DistanceResult({ result }: DistanceResultProps) {
               <div key={`${node.player.id}-${next.player.id}`} className="mb-3">
                 {/* Skip name for i=0 — already shown by the standalone "first player" block above */}
                 {i > 0 && (
-                  <div className="mb-1 text-lg font-bold text-[var(--board-dark)]">
-                    {formatPlayerName(node.player.title, node.player.name, node.player.federation)}
+                  <div className="mb-1">
+                    <PlayerLink player={node.player} className="text-lg font-bold text-[var(--board-dark)]" />
                   </div>
                 )}
                 <div className="text-[var(--text-secondary)] text-sm pl-4 border-l-2 border-[var(--board-dark)]/20 ml-2 my-1">
@@ -208,9 +206,7 @@ export default function DistanceResult({ result }: DistanceResultProps) {
 
       {/* Last player */}
       <div className="my-4">
-        <span className="text-lg font-bold text-[var(--board-dark)]">
-          {formatPlayerName(last.player.title, last.player.name, last.player.federation)}
-        </span>
+        <PlayerLink player={last.player} className="text-lg font-bold text-[var(--board-dark)]" />
       </div>
 
       {/* Distance badge */}
@@ -234,4 +230,21 @@ function formatPlayerName(title: string | null, name: string, federation?: strin
   const flag = federation ? federationFlag(federation) : "";
   const namePart = title ? `${title} ${name}` : name;
   return flag ? `${flag} ${namePart}` : namePart;
+}
+
+function PlayerLink({ player, className }: { player: Player; className?: string }) {
+  const label = formatPlayerName(player.title, player.name, player.federation);
+  if (player.fide_id) {
+    return (
+      <a
+        href={`https://ratings.fide.com/profile/${player.fide_id}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`hover:underline hover:text-[var(--accent)] transition-colors ${className ?? ""}`}
+      >
+        {label}
+      </a>
+    );
+  }
+  return <span className={className}>{label}</span>;
 }
