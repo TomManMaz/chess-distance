@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
 
   const rows = await sql`
     SELECT o.game_count, o.first_game_date, o.last_game_date,
+           o.classical_count, o.rapid_count, o.blitz_count, o.event_sample,
            pa.name as player_a_name, pa.title as player_a_title,
            pb.name as player_b_name, pb.title as player_b_title
     FROM opponents o
@@ -37,6 +38,10 @@ export async function GET(request: NextRequest) {
     game_count: row.game_count,
     first_game_date: row.first_game_date,
     last_game_date: row.last_game_date,
+    classical_count: row.classical_count ?? 0,
+    rapid_count: row.rapid_count ?? 0,
+    blitz_count: row.blitz_count ?? 0,
+    event_sample: row.event_sample ?? null,
     player_a: { name: row.player_a_name, title: row.player_a_title },
     player_b: { name: row.player_b_name, title: row.player_b_title },
   });

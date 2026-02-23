@@ -13,16 +13,18 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
+  const [classicalOnly, setClassicalOnly] = useState(false);
 
-  async function calculate() {
+  async function calculate(useClassicalOnly?: boolean) {
     if (!playerA || !playerB) return;
     setLoading(true);
     setError(null);
     setResult(null);
 
+    const tc = (useClassicalOnly ?? classicalOnly) ? "classical" : "all";
     try {
       const res = await fetch(
-        `/api/distance?from=${playerA.id}&to=${playerB.id}`
+        `/api/distance?from=${playerA.id}&to=${playerB.id}&tc=${tc}`
       );
       if (!res.ok) {
         const data = await res.json();
@@ -36,6 +38,13 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleToggleClassical() {
+    const next = !classicalOnly;
+    setClassicalOnly(next);
+    // Re-run if we already have a result
+    if (playerA && playerB) calculate(next);
   }
 
   return (
@@ -54,8 +63,29 @@ export default function Home() {
         <PlayerSearch label="Player A" onSelect={setPlayerA} />
         <PlayerSearch label="Player B" onSelect={setPlayerB} />
 
+        {/* Classical-only toggle */}
+        <div className="flex items-center justify-center gap-3">
+          <button
+            role="switch"
+            aria-checked={classicalOnly}
+            onClick={handleToggleClassical}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+              classicalOnly ? "bg-[var(--board-dark)]" : "bg-gray-300"
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                classicalOnly ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+          <span className="text-sm text-[var(--text-secondary)]">
+            Classical games only
+          </span>
+        </div>
+
         <button
-          onClick={calculate}
+          onClick={() => calculate()}
           disabled={!playerA || !playerB || loading}
           className="w-full py-3 px-6 bg-[var(--board-dark)] text-white font-semibold
                      rounded-lg hover:bg-[var(--board-dark)]/90 disabled:opacity-50
@@ -97,6 +127,11 @@ export default function Home() {
             where the sum of game counts between neighbors is highest &mdash;
             preferring connections through players who have faced each other
             many times.
+          </p>
+          <p className="mb-3">
+            The <strong>Classical games only</strong> toggle restricts the
+            graph to edges where at least one classical (long time-control)
+            game was played, giving a stricter notion of opponent distance.
           </p>
           <p className="mb-3">
             If no opponent path exists between two players, the system reports

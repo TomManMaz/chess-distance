@@ -1,21 +1,26 @@
 import { getDb } from "./db";
 import type { Player, DistanceResult, PathNode } from "./types";
 
+export type TimeControlFilter = "all" | "classical";
+
 interface AdjEntry {
   neighborId: number;
   gameCount: number;
+  classicalCount: number;
 }
 
-let adjacency: Map<number, AdjEntry[]> | null = null;
-let playersMap: Map<number, Player> | null = null;
-let lastLoadTime = 0;
+interface GraphCache {
+  adjacency: Map<number, AdjEntry[]>;
+  playersMap: Map<number, Player>;
+  loadedAt: number;
+}
+
+let cache: GraphCache | null = null;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
-async function loadGraph() {
+async function loadGraph(): Promise<GraphCache> {
   const now = Date.now();
-  if (adjacency && playersMap && now - lastLoadTime < CACHE_TTL_MS) {
-    return { adjacency, playersMap };
-  }
+  if (cache && now - cache.loadedAt < CACHE_TTL_MS) return cache;
 
   const sql = getDb();
 
@@ -31,40 +36,46 @@ async function loadGraph() {
     });
   }
 
-  const edges = await sql`SELECT player_a_id, player_b_id, game_count FROM opponents`;
+  const edges = await sql`SELECT player_a_id, player_b_id, game_count, classical_count FROM opponents`;
   const adj = new Map<number, AdjEntry[]>();
   for (const row of edges) {
     const a = row.player_a_id as number;
     const b = row.player_b_id as number;
     const gc = row.game_count as number;
+    const cc = (row.classical_count as number) ?? 0;
 
     if (!adj.has(a)) adj.set(a, []);
     if (!adj.has(b)) adj.set(b, []);
-    adj.get(a)!.push({ neighborId: b, gameCount: gc });
-    adj.get(b)!.push({ neighborId: a, gameCount: gc });
+    adj.get(a)!.push({ neighborId: b, gameCount: gc, classicalCount: cc });
+    adj.get(b)!.push({ neighborId: a, gameCount: gc, classicalCount: cc });
   }
 
-  adjacency = adj;
-  playersMap = pMap;
-  lastLoadTime = now;
+  cache = { adjacency: adj, playersMap: pMap, loadedAt: now };
+  return cache;
+}
 
-  return { adjacency: adj, playersMap: pMap };
+function edgeWeight(entry: AdjEntry, filter: TimeControlFilter): number {
+  if (filter === "classical") return entry.classicalCount;
+  return entry.gameCount;
 }
 
 function getGameCount(
   adj: Map<number, AdjEntry[]>,
   from: number,
-  to: number
+  to: number,
+  filter: TimeControlFilter
 ): number {
   const neighbors = adj.get(from);
   if (!neighbors) return 0;
   const entry = neighbors.find((e) => e.neighborId === to);
-  return entry?.gameCount ?? 0;
+  if (!entry) return 0;
+  return edgeWeight(entry, filter);
 }
 
 export async function findShortestPath(
   fromId: number,
-  toId: number
+  toId: number,
+  tcFilter: TimeControlFilter = "all"
 ): Promise<DistanceResult | null> {
   if (fromId === toId) {
     const { playersMap: pMap } = await loadGraph();
@@ -94,10 +105,10 @@ export async function findShortestPath(
       for (const node of frontierForward) {
         const neighbors = adj.get(node);
         if (!neighbors) continue;
-        // Sort neighbors by game_count descending to prefer high-traffic edges
-        const sorted = [...neighbors].sort(
-          (a, b) => b.gameCount - a.gameCount
-        );
+        // Filter by time control and sort by weight descending
+        const sorted = neighbors
+          .filter((e) => edgeWeight(e, tcFilter) > 0)
+          .sort((a, b) => edgeWeight(b, tcFilter) - edgeWeight(a, tcFilter));
         for (const { neighborId } of sorted) {
           if (parentForward.has(neighborId)) continue;
           parentForward.set(neighborId, node);
@@ -114,9 +125,9 @@ export async function findShortestPath(
       for (const node of frontierBackward) {
         const neighbors = adj.get(node);
         if (!neighbors) continue;
-        const sorted = [...neighbors].sort(
-          (a, b) => b.gameCount - a.gameCount
-        );
+        const sorted = neighbors
+          .filter((e) => edgeWeight(e, tcFilter) > 0)
+          .sort((a, b) => edgeWeight(b, tcFilter) - edgeWeight(a, tcFilter));
         for (const { neighborId } of sorted) {
           if (parentBackward.has(neighborId)) continue;
           parentBackward.set(neighborId, node);
@@ -152,7 +163,7 @@ export async function findShortestPath(
   const result: PathNode[] = fullPath.map((nodeId, i) => {
     const player = pMap.get(nodeId)!;
     const nextNodeId = fullPath[i + 1];
-    const gc = nextNodeId !== undefined ? getGameCount(adj, nodeId, nextNodeId) : null;
+    const gc = nextNodeId !== undefined ? getGameCount(adj, nodeId, nextNodeId, tcFilter) : null;
     return { player, game_count: gc };
   });
 

@@ -79,6 +79,29 @@ function parseHeader(line) {
   return m ? [m[1], m[2]] : null;
 }
 
+// Classify a game's time control into 'classical', 'rapid', or 'blitz'.
+// Uses FIDE boundaries: classical ≥ 25min effective, rapid 10-25min, blitz < 10min.
+function classifyTimeControl(tc, event) {
+  // Check event name for obvious clues when TC header is absent
+  if (event && event !== "?") {
+    const ev = event.toLowerCase();
+    if (/\bblitz\b|\bbullet\b|\blightning\b|\bblindblitz\b/.test(ev)) return "blitz";
+    if (/\brapid\b/.test(ev)) return "rapid";
+  }
+  if (!tc || tc === "?" || tc === "-" || tc === "") return "classical";
+  // Moves-in-time format like "40/7200" → classical
+  if (/^\d+\//.test(tc)) return "classical";
+  // Standard "base+increment" in seconds
+  const m = tc.match(/^(\d+)(?:\+(\d+))?/);
+  if (!m) return "classical";
+  const base = parseInt(m[1]);
+  const inc = parseInt(m[2] || "0");
+  const effectiveSecs = base + 40 * inc;
+  if (effectiveSecs >= 1500) return "classical";
+  if (effectiveSecs >= 600) return "rapid";
+  return "blitz";
+}
+
 function parsePgn(filePath) {
   const content = fs.readFileSync(filePath, "utf-8");
   const games = [];
@@ -157,13 +180,24 @@ async function main() {
       const pk = wKey < bKey ? `${wKey}||${bKey}` : `${bKey}||${wKey}`;
       let date = g.Date ? g.Date.replace(/\./g, "-") : null;
       if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) date = null;
+      const tc = classifyTimeControl(g.TimeControl || null, g.Event || null);
+      const eventName = (g.Event && g.Event !== "?" && g.Event !== "??" && g.Event.length > 1)
+        ? g.Event : null;
       const existing = pairCounts.get(pk);
       if (existing) {
         existing.count++;
+        existing[tc]++;
         if (date && (!existing.first || date < existing.first)) existing.first = date;
         if (date && (!existing.last || date > existing.last)) existing.last = date;
+        if (!existing.event && eventName) existing.event = eventName;
       } else {
-        pairCounts.set(pk, { count: 1, first: date, last: date });
+        pairCounts.set(pk, {
+          count: 1, first: date, last: date,
+          classical: tc === "classical" ? 1 : 0,
+          rapid: tc === "rapid" ? 1 : 0,
+          blitz: tc === "blitz" ? 1 : 0,
+          event: eventName,
+        });
       }
     }
     return games.length;
@@ -196,7 +230,103 @@ async function main() {
 
   console.log(`\n  Total games: ${totalGames}`);
   console.log(`  Unique players: ${playersByKey.size}`);
-  console.log(`  Unique opponent pairs: ${pairCounts.size}\n`);
+  console.log(`  Unique opponent pairs: ${pairCounts.size}`);
+
+  // Phase 2b: Normalize abbreviated names in-memory before DB insertion
+  // Groups name: keys by last name, finds abbreviated entries (single initial),
+  // and if exactly one full-name match exists, remaps the abbreviated key → full key.
+  console.log("\n=== Phase 2b: Normalizing abbreviated names ===");
+  {
+    const ABBREV_RE = /^,\s*([A-Za-z])\.?\s*$/;
+
+    // Collect only name: keys (not fide: keys)
+    const nameKeys = [...playersByKey.keys()].filter(k => k.startsWith("name:"));
+
+    // Group by last name (text before first comma in the actual name)
+    const byLastName = new Map();
+    for (const key of nameKeys) {
+      const player = playersByKey.get(key);
+      const commaIdx = player.name.indexOf(",");
+      if (commaIdx === -1) continue;
+      const lastName = player.name.substring(0, commaIdx).trim().toLowerCase();
+      if (!byLastName.has(lastName)) byLastName.set(lastName, []);
+      byLastName.get(lastName).push({ key, player });
+    }
+
+    const redirects = new Map(); // abbrevKey → fullKey
+    let normalized = 0, ambiguous = 0;
+
+    for (const [, entries] of byLastName) {
+      if (entries.length < 2) continue;
+
+      const abbreviated = [];
+      const fullName = [];
+
+      for (const entry of entries) {
+        const afterComma = entry.player.name.substring(entry.player.name.indexOf(","));
+        if (ABBREV_RE.test(afterComma)) {
+          const letter = afterComma.match(ABBREV_RE)[1].toUpperCase();
+          abbreviated.push({ ...entry, initial: letter });
+        } else {
+          fullName.push(entry);
+        }
+      }
+
+      if (abbreviated.length === 0) continue;
+
+      for (const abbrevEntry of abbreviated) {
+        const matches = fullName.filter(fp => {
+          const afterComma = fp.player.name.substring(fp.player.name.indexOf(",") + 1).trim();
+          return afterComma.toUpperCase().startsWith(abbrevEntry.initial);
+        });
+
+        if (matches.length !== 1) {
+          if (matches.length > 1) ambiguous++;
+          continue;
+        }
+
+        // Exactly one match — redirect abbrev → full
+        redirects.set(abbrevEntry.key, matches[0].key);
+        normalized++;
+      }
+    }
+
+    // Apply redirects to pairCounts
+    if (redirects.size > 0) {
+      const newPairCounts = new Map();
+      for (const [pk, data] of pairCounts) {
+        const [keyA, keyB] = pk.split("||");
+        const resolvedA = redirects.get(keyA) || keyA;
+        const resolvedB = redirects.get(keyB) || keyB;
+        if (resolvedA === resolvedB) continue; // would be a self-loop
+        const newPk = resolvedA < resolvedB ? `${resolvedA}||${resolvedB}` : `${resolvedB}||${resolvedA}`;
+        const existing = newPairCounts.get(newPk);
+        if (existing) {
+          existing.count += data.count;
+          existing.classical += data.classical || 0;
+          existing.rapid += data.rapid || 0;
+          existing.blitz += data.blitz || 0;
+          if (!existing.event && data.event) existing.event = data.event;
+          if (data.first && (!existing.first || data.first < existing.first)) existing.first = data.first;
+          if (data.last && (!existing.last || data.last > existing.last)) existing.last = data.last;
+        } else {
+          newPairCounts.set(newPk, { ...data });
+        }
+      }
+      pairCounts.clear();
+      for (const [k, v] of newPairCounts) pairCounts.set(k, v);
+
+      // Remove redirected abbreviated keys from playersByKey
+      for (const abbrevKey of redirects.keys()) {
+        playersByKey.delete(abbrevKey);
+      }
+    }
+
+    console.log(`  Normalized ${normalized} abbreviated name redirects`);
+    console.log(`  Skipped ${ambiguous} ambiguous cases`);
+    console.log(`  Players after normalization: ${playersByKey.size}`);
+    console.log(`  Pairs after normalization:   ${pairCounts.size}\n`);
+  }
 
   // Phase 3: DB insert
   if (!DB_URL) { console.error("No DATABASE_URL"); process.exit(1); }
@@ -248,12 +378,16 @@ async function main() {
       const [sId, bId] = idA < idB ? [idA, idB] : [idB, idA];
       try {
         await sql`
-          INSERT INTO opponents (player_a_id, player_b_id, game_count, first_game_date, last_game_date)
-          VALUES (${sId}, ${bId}, ${data.count}, ${data.first}, ${data.last})
+          INSERT INTO opponents (player_a_id, player_b_id, game_count, first_game_date, last_game_date, classical_count, rapid_count, blitz_count, event_sample)
+          VALUES (${sId}, ${bId}, ${data.count}, ${data.first}, ${data.last}, ${data.classical || 0}, ${data.rapid || 0}, ${data.blitz || 0}, ${data.event || null})
           ON CONFLICT (player_a_id, player_b_id) DO UPDATE SET
             game_count = opponents.game_count + EXCLUDED.game_count,
             first_game_date = LEAST(opponents.first_game_date, EXCLUDED.first_game_date),
-            last_game_date = GREATEST(opponents.last_game_date, EXCLUDED.last_game_date)`;
+            last_game_date = GREATEST(opponents.last_game_date, EXCLUDED.last_game_date),
+            classical_count = opponents.classical_count + EXCLUDED.classical_count,
+            rapid_count = opponents.rapid_count + EXCLUDED.rapid_count,
+            blitz_count = opponents.blitz_count + EXCLUDED.blitz_count,
+            event_sample = COALESCE(opponents.event_sample, EXCLUDED.event_sample)`;
       } catch (e) {}
     });
     await Promise.all(promises);

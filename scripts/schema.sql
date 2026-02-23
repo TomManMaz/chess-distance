@@ -17,6 +17,10 @@ CREATE TABLE IF NOT EXISTS opponents (
     game_count INTEGER NOT NULL DEFAULT 1,
     first_game_date DATE,
     last_game_date DATE,
+    classical_count INTEGER NOT NULL DEFAULT 0,
+    rapid_count INTEGER NOT NULL DEFAULT 0,
+    blitz_count INTEGER NOT NULL DEFAULT 0,
+    event_sample TEXT,
     PRIMARY KEY (player_a_id, player_b_id),
     CHECK (player_a_id < player_b_id)
 );

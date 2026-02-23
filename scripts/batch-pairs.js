@@ -12,6 +12,24 @@ function parseHeader(line) {
   return m ? [m[1], m[2]] : null;
 }
 
+function classifyTimeControl(tc, event) {
+  if (event && event !== "?") {
+    const ev = event.toLowerCase();
+    if (/\bblitz\b|\bbullet\b|\blightning\b|\bblindblitz\b/.test(ev)) return "blitz";
+    if (/\brapid\b/.test(ev)) return "rapid";
+  }
+  if (!tc || tc === "?" || tc === "-" || tc === "") return "classical";
+  if (/^\d+\//.test(tc)) return "classical";
+  const m = tc.match(/^(\d+)(?:\+(\d+))?/);
+  if (!m) return "classical";
+  const base = parseInt(m[1]);
+  const inc = parseInt(m[2] || "0");
+  const effectiveSecs = base + 40 * inc;
+  if (effectiveSecs >= 1500) return "classical";
+  if (effectiveSecs >= 600) return "rapid";
+  return "blitz";
+}
+
 function parsePgn(filePath) {
   const content = fs.readFileSync(filePath, "utf-8");
   const games = [];
@@ -59,13 +77,24 @@ async function main() {
       const pk = wKey < bKey ? `${wKey}||${bKey}` : `${bKey}||${wKey}`;
       let date = g.Date ? g.Date.replace(/\./g, "-") : null;
       if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) date = null;
+      const tc = classifyTimeControl(g.TimeControl || null, g.Event || null);
+      const eventName = (g.Event && g.Event !== "?" && g.Event !== "??" && g.Event.length > 1)
+        ? g.Event : null;
       const existing = pairCounts.get(pk);
       if (existing) {
         existing.count++;
+        existing[tc]++;
         if (date && (!existing.first || date < existing.first)) existing.first = date;
         if (date && (!existing.last || date > existing.last)) existing.last = date;
+        if (!existing.event && eventName) existing.event = eventName;
       } else {
-        pairCounts.set(pk, { count: 1, first: date, last: date });
+        pairCounts.set(pk, {
+          count: 1, first: date, last: date,
+          classical: tc === "classical" ? 1 : 0,
+          rapid: tc === "rapid" ? 1 : 0,
+          blitz: tc === "blitz" ? 1 : 0,
+          event: eventName,
+        });
       }
     }
   }
@@ -129,7 +158,11 @@ async function main() {
     const idB = resolveKey(keyB);
     if (!idA || !idB) { skipped++; continue; }
     const [sId, bId] = idA < idB ? [idA, idB] : [idB, idA];
-    resolvedPairs.push({ a: sId, b: bId, count: data.count, first: data.first, last: data.last });
+    resolvedPairs.push({
+      a: sId, b: bId, count: data.count, first: data.first, last: data.last,
+      classical: data.classical || 0, rapid: data.rapid || 0, blitz: data.blitz || 0,
+      event: data.event || null,
+    });
   }
 
   console.log(`  Resolved ${resolvedPairs.length} pairs (skipped ${skipped} with missing players)`);
@@ -150,18 +183,22 @@ async function main() {
       const valueClauses = [];
       for (let k = 0; k < chunk.length; k++) {
         const p = chunk[k];
-        const base = k * 5;
-        valueClauses.push(`($${base+1}, $${base+2}, $${base+3}, $${base+4}::date, $${base+5}::date)`);
-        params.push(p.a, p.b, p.count, p.first, p.last);
+        const base = k * 9;
+        valueClauses.push(`($${base+1}, $${base+2}, $${base+3}, $${base+4}::date, $${base+5}::date, $${base+6}, $${base+7}, $${base+8}, $${base+9})`);
+        params.push(p.a, p.b, p.count, p.first, p.last, p.classical, p.rapid, p.blitz, p.event);
       }
 
       const query = `
-        INSERT INTO opponents (player_a_id, player_b_id, game_count, first_game_date, last_game_date)
+        INSERT INTO opponents (player_a_id, player_b_id, game_count, first_game_date, last_game_date, classical_count, rapid_count, blitz_count, event_sample)
         VALUES ${valueClauses.join(", ")}
         ON CONFLICT (player_a_id, player_b_id) DO UPDATE SET
           game_count = opponents.game_count + EXCLUDED.game_count,
           first_game_date = LEAST(opponents.first_game_date, EXCLUDED.first_game_date),
-          last_game_date = GREATEST(opponents.last_game_date, EXCLUDED.last_game_date)`;
+          last_game_date = GREATEST(opponents.last_game_date, EXCLUDED.last_game_date),
+          classical_count = opponents.classical_count + EXCLUDED.classical_count,
+          rapid_count = opponents.rapid_count + EXCLUDED.rapid_count,
+          blitz_count = opponents.blitz_count + EXCLUDED.blitz_count,
+          event_sample = COALESCE(opponents.event_sample, EXCLUDED.event_sample)`;
 
       batchPromises.push(
         sql.query(query, params).then(() => { inserted += chunk.length; }).catch(e => {

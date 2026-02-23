@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import type { DistanceResult as DistanceResultType } from "@/lib/types";
+import { federationFlag } from "@/lib/federation-flag";
 
 interface DistanceResultProps {
   result: DistanceResultType;
@@ -11,6 +12,10 @@ interface GameDetail {
   game_count: number;
   first_game_date: string | null;
   last_game_date: string | null;
+  classical_count: number;
+  rapid_count: number;
+  blitz_count: number;
+  event_sample: string | null;
   player_a: { name: string; title: string | null };
   player_b: { name: string; title: string | null };
 }
@@ -75,6 +80,8 @@ export default function DistanceResult({ result }: DistanceResultProps) {
                       {formatPlayerName(modal.player_b.title, modal.player_b.name)}
                     </div>
                   </div>
+
+                  {/* Total game count */}
                   <div className="text-center">
                     <span className="text-3xl font-bold text-[var(--accent)]">
                       {modal.game_count}
@@ -83,6 +90,36 @@ export default function DistanceResult({ result }: DistanceResultProps) {
                       {modal.game_count === 1 ? "game" : "games"} played
                     </span>
                   </div>
+
+                  {/* Time control breakdown */}
+                  {(modal.classical_count > 0 || modal.rapid_count > 0 || modal.blitz_count > 0) && (
+                    <div className="flex justify-center gap-4 text-sm text-[var(--text-secondary)]">
+                      {modal.classical_count > 0 && (
+                        <span>
+                          <span className="font-medium text-[var(--board-dark)]">{modal.classical_count}</span>{" "}classical
+                        </span>
+                      )}
+                      {modal.rapid_count > 0 && (
+                        <span>
+                          <span className="font-medium text-[var(--board-dark)]">{modal.rapid_count}</span>{" "}rapid
+                        </span>
+                      )}
+                      {modal.blitz_count > 0 && (
+                        <span>
+                          <span className="font-medium text-[var(--board-dark)]">{modal.blitz_count}</span>{" "}blitz
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Event name */}
+                  {modal.event_sample && (
+                    <div className="text-sm text-[var(--text-secondary)] text-center italic">
+                      e.g. {modal.event_sample}
+                    </div>
+                  )}
+
+                  {/* Date range */}
                   {(modal.first_game_date || modal.last_game_date) && (
                     <div className="text-sm text-[var(--text-secondary)] text-center">
                       {modal.first_game_date && modal.last_game_date && modal.first_game_date !== modal.last_game_date
@@ -108,15 +145,15 @@ export default function DistanceResult({ result }: DistanceResultProps) {
       {/* Compact summary line */}
       <div className="text-[var(--text-secondary)] mb-2">
         Distance between{" "}
-        <strong>{formatPlayerName(first.player.title, first.player.name)}</strong>
+        <strong>{formatPlayerName(first.player.title, first.player.name, first.player.federation)}</strong>
         {" "}and{" "}
-        <strong>{formatPlayerName(last.player.title, last.player.name)}</strong>
+        <strong>{formatPlayerName(last.player.title, last.player.name, last.player.federation)}</strong>
       </div>
 
       {/* Chain: first player */}
       <div className="my-4">
         <span className="text-lg font-bold text-[var(--board-dark)]">
-          {formatPlayerName(first.player.title, first.player.name)}
+          {formatPlayerName(first.player.title, first.player.name, first.player.federation)}
         </span>
       </div>
 
@@ -149,7 +186,7 @@ export default function DistanceResult({ result }: DistanceResultProps) {
               <div key={`${node.player.id}-${next.player.id}`} className="mb-3">
                 <div className="text-[var(--text-secondary)] text-sm pl-4 border-l-2 border-[var(--board-dark)]/20 ml-2">
                   <span className="text-[var(--board-dark)] font-medium">
-                    {formatPlayerName(node.player.title, node.player.name)}
+                    {formatPlayerName(node.player.title, node.player.name, node.player.federation)}
                   </span>
                   <div className="my-1">
                     played{" "}
@@ -162,7 +199,7 @@ export default function DistanceResult({ result }: DistanceResultProps) {
                     {" "}against
                   </div>
                   <span className="text-[var(--board-dark)] font-medium">
-                    {formatPlayerName(next.player.title, next.player.name)}
+                    {formatPlayerName(next.player.title, next.player.name, next.player.federation)}
                   </span>
                 </div>
               </div>
@@ -174,7 +211,7 @@ export default function DistanceResult({ result }: DistanceResultProps) {
       {/* Last player */}
       <div className="my-4">
         <span className="text-lg font-bold text-[var(--board-dark)]">
-          {formatPlayerName(last.player.title, last.player.name)}
+          {formatPlayerName(last.player.title, last.player.name, last.player.federation)}
         </span>
       </div>
 
@@ -195,6 +232,8 @@ export default function DistanceResult({ result }: DistanceResultProps) {
   );
 }
 
-function formatPlayerName(title: string | null, name: string): string {
-  return title ? `${title} ${name}` : name;
+function formatPlayerName(title: string | null, name: string, federation?: string | null): string {
+  const flag = federation ? federationFlag(federation) : "";
+  const namePart = title ? `${title} ${name}` : name;
+  return flag ? `${flag} ${namePart}` : namePart;
 }

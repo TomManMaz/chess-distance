@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findShortestPath } from "@/lib/bfs";
+import type { TimeControlFilter } from "@/lib/bfs";
 
 export async function GET(request: NextRequest) {
   const fromParam = request.nextUrl.searchParams.get("from");
   const toParam = request.nextUrl.searchParams.get("to");
+  const tcParam = request.nextUrl.searchParams.get("tc");
 
   if (!fromParam || !toParam) {
     return NextResponse.json(
@@ -22,7 +24,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const result = await findShortestPath(fromId, toId);
+  const tcFilter: TimeControlFilter =
+    tcParam === "classical" ? "classical" : "all";
+
+  const result = await findShortestPath(fromId, toId, tcFilter);
 
   if (!result) {
     return NextResponse.json(

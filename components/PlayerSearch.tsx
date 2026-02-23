@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { SearchResult } from "@/lib/types";
+import { federationFlag } from "@/lib/federation-flag";
 
 interface PlayerSearchProps {
   label: string;
@@ -72,9 +73,10 @@ export default function PlayerSearch({ label, onSelect }: PlayerSearchProps) {
 
   function formatPlayer(p: SearchResult): string {
     const parts: string[] = [];
+    const flag = p.federation ? federationFlag(p.federation) : "";
+    if (flag) parts.push(flag);
     if (p.title) parts.push(p.title);
     parts.push(p.name);
-    if (p.federation) parts.push(`(${p.federation})`);
     return parts.join(" ");
   }
 
@@ -104,17 +106,19 @@ export default function PlayerSearch({ label, onSelect }: PlayerSearchProps) {
             <li
               key={r.id}
               onClick={() => handleSelect(r)}
-              className="px-4 py-2 cursor-pointer hover:bg-[var(--board-light)] transition-colors"
+              className="px-4 py-2 cursor-pointer hover:bg-[var(--board-light)] transition-colors flex items-center gap-2"
             >
-              <span className="font-semibold text-[var(--board-dark)]">
-                {r.title && `${r.title} `}
-              </span>
-              <span>{r.name}</span>
               {r.federation && (
-                <span className="ml-2 text-sm text-[var(--text-secondary)]">
-                  ({r.federation})
+                <span className="text-lg leading-none" title={r.federation}>
+                  {federationFlag(r.federation) || r.federation}
                 </span>
               )}
+              <span>
+                <span className="font-semibold text-[var(--board-dark)]">
+                  {r.title && `${r.title} `}
+                </span>
+                <span>{r.name}</span>
+              </span>
             </li>
           ))}
         </ul>
