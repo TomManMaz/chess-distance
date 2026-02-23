@@ -36,13 +36,20 @@ async function loadGraph(): Promise<GraphCache> {
     });
   }
 
-  const edges = await sql`SELECT player_a_id, player_b_id, game_count, classical_count FROM opponents`;
+  // Try to load classical_count; if the column doesn't exist yet (migration
+  // not yet run), fall back to treating every game as classical.
+  let edges: { player_a_id: number; player_b_id: number; game_count: number; classical_count: number }[];
+  try {
+    edges = await sql`SELECT player_a_id, player_b_id, game_count, classical_count FROM opponents` as typeof edges;
+  } catch {
+    edges = await sql`SELECT player_a_id, player_b_id, game_count, game_count AS classical_count FROM opponents` as typeof edges;
+  }
   const adj = new Map<number, AdjEntry[]>();
   for (const row of edges) {
     const a = row.player_a_id as number;
     const b = row.player_b_id as number;
     const gc = row.game_count as number;
-    const cc = (row.classical_count as number) ?? 0;
+    const cc = (row.classical_count as number) ?? gc;
 
     if (!adj.has(a)) adj.set(a, []);
     if (!adj.has(b)) adj.set(b, []);
