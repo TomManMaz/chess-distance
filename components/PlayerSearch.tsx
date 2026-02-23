@@ -7,14 +7,29 @@ import { federationFlag } from "@/lib/federation-flag";
 interface PlayerSearchProps {
   label: string;
   onSelect: (player: SearchResult | null) => void;
+  externalPlayer?: SearchResult | null; // set from outside to pre-fill
 }
 
-export default function PlayerSearch({ label, onSelect }: PlayerSearchProps) {
+export default function PlayerSearch({ label, onSelect, externalPlayer }: PlayerSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [selected, setSelected] = useState<SearchResult | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Sync when a player is set externally (e.g. from an example button)
+  useEffect(() => {
+    if (externalPlayer === undefined) return;
+    if (externalPlayer) {
+      setSelected(externalPlayer);
+      setQuery(formatPlayer(externalPlayer));
+      setIsOpen(false);
+    } else {
+      setSelected(null);
+      setQuery("");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalPlayer]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 

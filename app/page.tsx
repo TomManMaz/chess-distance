@@ -9,30 +9,27 @@ import type { SearchResult, DistanceResult } from "@/lib/types";
 export default function Home() {
   const [playerA, setPlayerA] = useState<SearchResult | null>(null);
   const [playerB, setPlayerB] = useState<SearchResult | null>(null);
+  const [externalA, setExternalA] = useState<SearchResult | null | undefined>(undefined);
+  const [externalB, setExternalB] = useState<SearchResult | null | undefined>(undefined);
   const [result, setResult] = useState<DistanceResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
   const [classicalOnly, setClassicalOnly] = useState(false);
 
-  async function calculate(useClassicalOnly?: boolean) {
-    if (!playerA || !playerB) return;
+  async function calculateWith(a: SearchResult, b: SearchResult, useClassicalOnly?: boolean) {
     setLoading(true);
     setError(null);
     setResult(null);
-
     const tc = (useClassicalOnly ?? classicalOnly) ? "classical" : "all";
     try {
-      const res = await fetch(
-        `/api/distance?from=${playerA.id}&to=${playerB.id}&tc=${tc}`
-      );
+      const res = await fetch(`/api/distance?from=${a.id}&to=${b.id}&tc=${tc}`);
       if (!res.ok) {
         const data = await res.json();
         setError(data.error || "Failed to calculate distance");
         return;
       }
-      const data: DistanceResult = await res.json();
-      setResult(data);
+      setResult(await res.json());
     } catch {
       setError("An error occurred. Please try again.");
     } finally {
@@ -40,10 +37,38 @@ export default function Home() {
     }
   }
 
+  async function calculate(useClassicalOnly?: boolean) {
+    if (!playerA || !playerB) return;
+    await calculateWith(playerA, playerB, useClassicalOnly);
+  }
+
+  async function tryExample() {
+    setError(null);
+    try {
+      const [resA, resB] = await Promise.all([
+        fetch("/api/search?q=Carlsen").then(r => r.json()),
+        fetch("/api/search?q=Morphy").then(r => r.json()),
+      ]);
+      const carlsen: SearchResult | undefined = resA.find((p: SearchResult) =>
+        p.name.toLowerCase().includes("carlsen")
+      );
+      const morphy: SearchResult | undefined = resB.find((p: SearchResult) =>
+        p.name.toLowerCase().includes("morphy")
+      );
+      if (!carlsen || !morphy) { setError("Example players not found."); return; }
+      setPlayerA(carlsen);
+      setPlayerB(morphy);
+      setExternalA(carlsen);
+      setExternalB(morphy);
+      await calculateWith(carlsen, morphy);
+    } catch {
+      setError("An error occurred. Please try again.");
+    }
+  }
+
   function handleToggleClassical() {
     const next = !classicalOnly;
     setClassicalOnly(next);
-    // Re-run if we already have a result
     if (playerA && playerB) calculate(next);
   }
 
@@ -60,8 +85,17 @@ export default function Home() {
       </div>
 
       <div className="space-y-4">
-        <PlayerSearch label="Player A" onSelect={setPlayerA} />
-        <PlayerSearch label="Player B" onSelect={setPlayerB} />
+        <PlayerSearch label="Player A" onSelect={setPlayerA} externalPlayer={externalA} />
+        <PlayerSearch label="Player B" onSelect={setPlayerB} externalPlayer={externalB} />
+        <div className="text-center text-sm text-[var(--text-secondary)]">
+          Try an example:{" "}
+          <button
+            onClick={tryExample}
+            className="text-[var(--accent)] hover:text-[var(--board-dark)] underline cursor-pointer transition-colors"
+          >
+            Magnus Carlsen → Paul Morphy
+          </button>
+        </div>
 
         {/* Classical-only toggle */}
         <div className="flex items-center justify-center gap-3">
