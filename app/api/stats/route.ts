@@ -9,11 +9,13 @@ export async function GET() {
   const [pairCount] = await sql`SELECT COUNT(*) as count FROM opponents`;
   const [gameSum] = await sql`SELECT COALESCE(SUM(game_count), 0) as total FROM opponents`;
 
+  const [latestGame] = await sql`SELECT MAX(last_game_date)::text AS last_date FROM opponents`;
+
   const stats: StatsData = {
     total_players: Number(playerCount.count),
     total_opponent_pairs: Number(pairCount.count),
     total_games: Number(gameSum.total),
-    last_updated: null,
+    last_updated: latestGame?.last_date ?? null,
   };
 
   return NextResponse.json(stats);
