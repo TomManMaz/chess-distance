@@ -207,7 +207,8 @@ async function phase2AbbreviatedNames(dryRun) {
   }
 
   // Regex: first name part is a single letter optionally followed by a period (and nothing else)
-  const ABBREV_RE = /^,\s*([A-Za-z])\.?\s*$/;
+  // Match 1–4 letter first-name abbreviations (e.g. ", A" / ", Ana" / ", Gar.")
+  const ABBREV_RE = /^,\s*([A-Za-z]{1,4})\.?\s*$/;
 
   let merged = 0;
   let ambiguous = 0;
@@ -222,8 +223,8 @@ async function phase2AbbreviatedNames(dryRun) {
     for (const p of players) {
       const afterComma = p.name.substring(p.name.indexOf(","));
       if (ABBREV_RE.test(afterComma)) {
-        const letter = afterComma.match(ABBREV_RE)[1].toUpperCase();
-        abbreviated.push({ ...p, initial: letter });
+        const abbrev = afterComma.match(ABBREV_RE)[1].toUpperCase();
+        abbreviated.push({ ...p, abbrev });
       } else {
         fullName.push(p);
       }
@@ -235,7 +236,7 @@ async function phase2AbbreviatedNames(dryRun) {
       // Find all full-name players whose first name starts with the same initial
       const matches = fullName.filter(fp => {
         const afterComma = fp.name.substring(fp.name.indexOf(",") + 1).trim();
-        return afterComma.toUpperCase().startsWith(abbrevPlayer.initial);
+        return afterComma.toUpperCase().startsWith(abbrevPlayer.abbrev);
       });
 
       if (matches.length === 0) continue;

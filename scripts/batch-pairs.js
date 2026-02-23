@@ -12,6 +12,10 @@ function parseHeader(line) {
   return m ? [m[1], m[2]] : null;
 }
 
+function normalizeName(name) {
+  return name.replace(/,([^\s])/, ", $1").trim();
+}
+
 function classifyTimeControl(tc, event) {
   if (event && event !== "?") {
     const ev = event.toLowerCase();
@@ -65,12 +69,14 @@ async function main() {
     for (const g of games) {
       const wFide = g.WhiteFideId ? parseInt(g.WhiteFideId) || null : null;
       const bFide = g.BlackFideId ? parseInt(g.BlackFideId) || null : null;
-      const wKey = wFide ? `fide:${wFide}` : `name:${g.White.toLowerCase().trim()}`;
-      const bKey = bFide ? `fide:${bFide}` : `name:${g.Black.toLowerCase().trim()}`;
+      const wName = normalizeName(g.White);
+      const bName = normalizeName(g.Black);
+      const wKey = wFide ? `fide:${wFide}` : `name:${wName.toLowerCase()}`;
+      const bKey = bFide ? `fide:${bFide}` : `name:${bName.toLowerCase()}`;
       if (!playersByKey.has(wKey))
-        playersByKey.set(wKey, { name: g.White, fide_id: wFide, title: g.WhiteTitle || null });
+        playersByKey.set(wKey, { name: wName, fide_id: wFide, title: g.WhiteTitle || null });
       if (!playersByKey.has(bKey))
-        playersByKey.set(bKey, { name: g.Black, fide_id: bFide, title: g.BlackTitle || null });
+        playersByKey.set(bKey, { name: bName, fide_id: bFide, title: g.BlackTitle || null });
       if (g.WhiteTitle && !playersByKey.get(wKey).title) playersByKey.get(wKey).title = g.WhiteTitle;
       if (g.BlackTitle && !playersByKey.get(bKey).title) playersByKey.get(bKey).title = g.BlackTitle;
       if (wKey === bKey) continue;

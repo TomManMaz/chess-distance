@@ -81,6 +81,12 @@ function parseHeader(line) {
 
 // Classify a game's time control into 'classical', 'rapid', or 'blitz'.
 // Uses FIDE boundaries: classical ≥ 25min effective, rapid 10-25min, blitz < 10min.
+// Normalize a player name from a PGN header.
+// Ensures a space after the comma: "Karpov,Anatoly" → "Karpov, Anatoly"
+function normalizeName(name) {
+  return name.replace(/,([^\s])/, ", $1").trim();
+}
+
 function classifyTimeControl(tc, event) {
   // Check event name for obvious clues when TC header is absent
   if (event && event !== "?") {
@@ -168,12 +174,14 @@ async function main() {
     for (const g of games) {
       const wFide = g.WhiteFideId ? parseInt(g.WhiteFideId) || null : null;
       const bFide = g.BlackFideId ? parseInt(g.BlackFideId) || null : null;
-      const wKey = wFide ? `fide:${wFide}` : `name:${g.White.toLowerCase().trim()}`;
-      const bKey = bFide ? `fide:${bFide}` : `name:${g.Black.toLowerCase().trim()}`;
+      const wName = normalizeName(g.White);
+      const bName = normalizeName(g.Black);
+      const wKey = wFide ? `fide:${wFide}` : `name:${wName.toLowerCase()}`;
+      const bKey = bFide ? `fide:${bFide}` : `name:${bName.toLowerCase()}`;
       if (!playersByKey.has(wKey))
-        playersByKey.set(wKey, { name: g.White, fide_id: wFide, title: g.WhiteTitle || null });
+        playersByKey.set(wKey, { name: wName, fide_id: wFide, title: g.WhiteTitle || null });
       if (!playersByKey.has(bKey))
-        playersByKey.set(bKey, { name: g.Black, fide_id: bFide, title: g.BlackTitle || null });
+        playersByKey.set(bKey, { name: bName, fide_id: bFide, title: g.BlackTitle || null });
       if (g.WhiteTitle && !playersByKey.get(wKey).title) playersByKey.get(wKey).title = g.WhiteTitle;
       if (g.BlackTitle && !playersByKey.get(bKey).title) playersByKey.get(bKey).title = g.BlackTitle;
       if (wKey === bKey) continue;
@@ -237,7 +245,9 @@ async function main() {
   // and if exactly one full-name match exists, remaps the abbreviated key → full key.
   console.log("\n=== Phase 2b: Normalizing abbreviated names ===");
   {
-    const ABBREV_RE = /^,\s*([A-Za-z])\.?\s*$/;
+    // Match 1–4 letter first-name abbreviations (with optional trailing period)
+    // e.g. ", A" / ", G." / ", Ana" / ", Gar"
+    const ABBREV_RE = /^,\s*([A-Za-z]{1,4})\.?\s*$/;
 
     // Collect only name: keys (not fide: keys)
     const nameKeys = [...playersByKey.keys()].filter(k => k.startsWith("name:"));
@@ -265,8 +275,8 @@ async function main() {
       for (const entry of entries) {
         const afterComma = entry.player.name.substring(entry.player.name.indexOf(","));
         if (ABBREV_RE.test(afterComma)) {
-          const letter = afterComma.match(ABBREV_RE)[1].toUpperCase();
-          abbreviated.push({ ...entry, initial: letter });
+          const abbrev = afterComma.match(ABBREV_RE)[1].toUpperCase();
+          abbreviated.push({ ...entry, abbrev });
         } else {
           fullName.push(entry);
         }
@@ -277,7 +287,7 @@ async function main() {
       for (const abbrevEntry of abbreviated) {
         const matches = fullName.filter(fp => {
           const afterComma = fp.player.name.substring(fp.player.name.indexOf(",") + 1).trim();
-          return afterComma.toUpperCase().startsWith(abbrevEntry.initial);
+          return afterComma.toUpperCase().startsWith(abbrevEntry.abbrev);
         });
 
         if (matches.length !== 1) {
