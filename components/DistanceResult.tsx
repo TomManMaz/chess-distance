@@ -184,23 +184,21 @@ export default function DistanceResult({ result }: DistanceResultProps) {
             const gc = node.game_count ?? 0;
             return (
               <div key={`${node.player.id}-${next.player.id}`} className="mb-3">
-                <div className="text-[var(--text-secondary)] text-sm pl-4 border-l-2 border-[var(--board-dark)]/20 ml-2">
-                  <span className="text-[var(--board-dark)] font-medium">
+                {/* Skip name for i=0 — already shown by the standalone "first player" block above */}
+                {i > 0 && (
+                  <div className="mb-1 text-lg font-bold text-[var(--board-dark)]">
                     {formatPlayerName(node.player.title, node.player.name, node.player.federation)}
-                  </span>
-                  <div className="my-1">
-                    played{" "}
-                    <a
-                      onClick={() => openGames(node.player.id, next.player.id)}
-                      className="text-[var(--accent)] underline cursor-pointer hover:text-[var(--board-dark)] font-medium"
-                    >
-                      {gc} {gc === 1 ? "game" : "games"}
-                    </a>
-                    {" "}against
                   </div>
-                  <span className="text-[var(--board-dark)] font-medium">
-                    {formatPlayerName(next.player.title, next.player.name, next.player.federation)}
-                  </span>
+                )}
+                <div className="text-[var(--text-secondary)] text-sm pl-4 border-l-2 border-[var(--board-dark)]/20 ml-2 my-1">
+                  played{" "}
+                  <a
+                    onClick={() => openGames(node.player.id, next.player.id)}
+                    className="text-[var(--accent)] underline cursor-pointer hover:text-[var(--board-dark)] font-medium"
+                  >
+                    {gc} {gc === 1 ? "game" : "games"}
+                  </a>
+                  {" "}against
                 </div>
               </div>
             );
