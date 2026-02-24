@@ -18,8 +18,10 @@ A web app that calculates the shortest "opponent path" between any two chess pla
 ## Current Database State
 - **88,060 players** (historical from 1850s + modern FIDE-rated players; will grow significantly after FIDE XML import)
 - **698,791 opponent pairs** from 1,068,273 games (will grow after TWIC 1090–1632 download)
-- Morphy (1850s) is connected; Morphy → Carlsen distance = 6
+- Morphy (1850s) is connected; Morphy → Carlsen distance = 8 (via real historical chain through Anderssen)
 - Dummy/computer players (NN, Comp*) have been removed to prevent false short-circuit paths
+- **Mannelli Mazzoli, Tommaso** (FIDE 2842411) is in the DB with Morphy number = 8
+- False Morphy–Knott link removed: Simon JB Knott (b.1958) cannot have played Morphy (d.1884)
 - `opponents` table has `classical_count`, `rapid_count`, `blitz_count`, `event_sample` columns (added by migration script)
 
 ## Key Commands
@@ -45,6 +47,8 @@ node scripts/deduplicate-players.js --dry-run
 # Utilities:
 node scripts/find-players.js          # Search PGN files for a player name
 node scripts/validate-data.js         # Check for cross-era data anomalies
+node scripts/add-player-fide.js <fide_id>  # Scrape FIDE calc page and add player + opponents to DB
+node scripts/my-morphy-number.js      # Compute Morphy number for Mannelli Mazzoli, Tommaso
 ```
 
 ## Recommended full-refresh workflow
