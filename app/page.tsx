@@ -49,12 +49,15 @@ export default function Home() {
         fetch("/api/search?q=Carlsen").then(r => r.json()),
         fetch("/api/search?q=Morphy").then(r => r.json()),
       ]);
-      const carlsen: SearchResult | undefined = resA.find((p: SearchResult) =>
-        p.name.toLowerCase().includes("carlsen")
-      );
-      const morphy: SearchResult | undefined = resB.find((p: SearchResult) =>
-        p.name.toLowerCase().includes("morphy")
-      );
+      // Pick the most-connected result (highest id tends to come from FIDE XML with full data),
+      // but prefer an exact name match for well-known players.
+      const carlsen: SearchResult | undefined =
+        resA.find((p: SearchResult) => p.name === "Carlsen, Magnus") ||
+        resA.find((p: SearchResult) => /carlsen.*magnus|magnus.*carlsen/i.test(p.name)) ||
+        resA.find((p: SearchResult) => p.name.toLowerCase().includes("carlsen"));
+      const morphy: SearchResult | undefined =
+        resB.find((p: SearchResult) => /morphy.*paul|paul.*morphy/i.test(p.name)) ||
+        resB.find((p: SearchResult) => p.name.toLowerCase().includes("morphy"));
       if (!carlsen || !morphy) { setError("Example players not found."); return; }
       setPlayerA(carlsen);
       setPlayerB(morphy);

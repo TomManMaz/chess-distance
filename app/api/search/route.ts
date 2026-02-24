@@ -15,7 +15,10 @@ export async function GET(request: NextRequest) {
     SELECT id, name, title, federation
     FROM players
     WHERE name % ${query}
-    ORDER BY similarity(name, ${query}) DESC
+    ORDER BY
+      similarity(name, ${query}) DESC,
+      (fide_id IS NOT NULL) DESC,   -- FIDE-verified players first on ties
+      length(name) DESC              -- longer (more complete) names before abbreviations
     LIMIT 10
   `;
 
