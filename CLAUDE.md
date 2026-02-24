@@ -64,6 +64,9 @@ DATABASE_URL=... node scripts/batch-pairs.js
 # 3. Clean up
 DATABASE_URL=... node scripts/cleanup-data.js
 DATABASE_URL=... node scripts/deduplicate-players.js
+# IMPORTANT: always run validate-data after dedup — dedup can re-introduce false
+# cross-era links by merging a historical duplicate into a modern canonical player.
+DATABASE_URL=... node scripts/validate-data.js --fix
 ```
 
 ## Important Notes on Neon Driver

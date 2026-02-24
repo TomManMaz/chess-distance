@@ -13,8 +13,11 @@
  *   1. Compute each player's era from their dated opponent pairs.
  *   2. Flag any pair where one player's last known game is before PRE_CUTOFF
  *      and the other's first known game is after POST_CUTOFF.
- *   3. Also flag pairs where one player has a FIDE ID (registered post-1970)
+ *   3. Flag pairs where one player has a FIDE ID (registered post-1970)
  *      and the other's era is entirely before PRE_CUTOFF.
+ *   4. Flag all neighbors of known pre-1900 anchor players (Morphy, Anderssen)
+ *      who have a FIDE ID OR whose earliest known game is after 1920.
+ *      This catches false links introduced via deduplication merges.
  */
 
 const { neon } = require("@neondatabase/serverless");
@@ -64,11 +67,22 @@ async function main() {
     ORDER BY ea.last_game NULLS LAST, eb.last_game NULLS LAST
   `;
 
-  // Check 3: players with FIDE IDs directly connected to known pre-1900 anchors
-  // (catches cases where historical games have null dates)
+  // Check 3 & 4: neighbors of known pre-1900 anchors that shouldn't be connected.
+  // Check 3: neighbor has a FIDE ID (registered post-1970) — impossible to have played them.
+  // Check 4: neighbor's earliest known game is after ANCHOR_CUTOFF — they are clearly modern.
   // Known pre-1900 player IDs: Morphy=157633, Anderssen=157588
   const PRE1900_ANCHORS = [157633, 157588];
+  const ANCHOR_CUTOFF = "1920-01-01"; // any neighbor whose first game is after this is suspicious
   const anchorSuspicious = await sql`
+    WITH neighbor_era AS (
+      SELECT player_id, MIN(first_game_date) AS first_game
+      FROM (
+        SELECT player_a_id AS player_id, first_game_date FROM opponents WHERE first_game_date IS NOT NULL
+        UNION ALL
+        SELECT player_b_id AS player_id, first_game_date FROM opponents WHERE first_game_date IS NOT NULL
+      ) t
+      GROUP BY player_id
+    )
     SELECT
       o.player_a_id, o.player_b_id,
       o.game_count, o.first_game_date, o.event_sample,
@@ -79,9 +93,19 @@ async function main() {
     FROM opponents o
     JOIN players pa ON pa.id = o.player_a_id
     JOIN players pb ON pb.id = o.player_b_id
+    LEFT JOIN neighbor_era nea ON nea.player_id = o.player_a_id
+    LEFT JOIN neighbor_era neb ON neb.player_id = o.player_b_id
     WHERE
-      (o.player_a_id = ANY(${PRE1900_ANCHORS}) AND pb.fide_id IS NOT NULL)
-      OR (o.player_b_id = ANY(${PRE1900_ANCHORS}) AND pa.fide_id IS NOT NULL)
+      -- Anchor is player_a, neighbor is player_b
+      (o.player_a_id = ANY(${PRE1900_ANCHORS}) AND (
+        pb.fide_id IS NOT NULL           -- Check 3: neighbor has FIDE ID
+        OR neb.first_game > ${ANCHOR_CUTOFF}  -- Check 4: neighbor's era starts after 1920
+      ))
+      -- Anchor is player_b, neighbor is player_a
+      OR (o.player_b_id = ANY(${PRE1900_ANCHORS}) AND (
+        pa.fide_id IS NOT NULL           -- Check 3: neighbor has FIDE ID
+        OR nea.first_game > ${ANCHOR_CUTOFF}  -- Check 4: neighbor's era starts after 1920
+      ))
   `;
   const seen = new Set(suspicious.map(s => `${s.player_a_id}:${s.player_b_id}`));
   for (const s of anchorSuspicious) {
