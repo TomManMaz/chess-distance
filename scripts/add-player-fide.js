@@ -145,14 +145,21 @@ async function findOrInsertPlayer(name, fideId, federation, title) {
   return ins[0];
 }
 
-async function linkPlayers(idA, idB, period) {
+async function linkPlayers(idA, idB, period, tcType) {
   const [a, b] = idA < idB ? [idA, idB] : [idB, idA];
+  // tcType: 1=Standard/Classical, 2=Rapid, 3=Blitz
+  const classicalInc = tcType === 1 ? 1 : 0;
+  const rapidInc     = tcType === 2 ? 1 : 0;
+  const blitzInc     = tcType === 3 ? 1 : 0;
   await sql`
-    INSERT INTO opponents (player_a_id, player_b_id, game_count, first_game_date, last_game_date)
-    VALUES (${a}, ${b}, 1, ${period}, ${period})
+    INSERT INTO opponents (player_a_id, player_b_id, game_count, first_game_date, last_game_date, classical_count, rapid_count, blitz_count)
+    VALUES (${a}, ${b}, 1, ${period}, ${period}, ${classicalInc}, ${rapidInc}, ${blitzInc})
     ON CONFLICT (player_a_id, player_b_id) DO UPDATE SET
       game_count        = GREATEST(opponents.game_count, 1),
-      last_game_date    = GREATEST(opponents.last_game_date, EXCLUDED.last_game_date)
+      last_game_date    = GREATEST(opponents.last_game_date, EXCLUDED.last_game_date),
+      classical_count   = GREATEST(opponents.classical_count, EXCLUDED.classical_count),
+      rapid_count       = GREATEST(opponents.rapid_count,     EXCLUDED.rapid_count),
+      blitz_count       = GREATEST(opponents.blitz_count,     EXCLUDED.blitz_count)
   `;
 }
 
@@ -173,7 +180,7 @@ async function main() {
   console.log(`  ${periods.length} periods: ${periods.slice(0,5).join(", ")}...`);
 
   // 3. Fetch all periods × rating types
-  const allOpponents = new Map(); // key → opponent data
+  const allOpponents = new Map(); // key → { ...opp, tcTypes: Set }
   let checked = 0;
   const total = periods.length * 3;
 
@@ -183,7 +190,8 @@ async function main() {
       const opps = parseOpponents(html, period);
       for (const o of opps) {
         const key = o.fide_id ? `fide:${o.fide_id}` : `name:${o.name.toLowerCase().trim()}`;
-        if (!allOpponents.has(key)) allOpponents.set(key, o);
+        if (!allOpponents.has(key)) allOpponents.set(key, { ...o, tcTypes: new Set() });
+        allOpponents.get(key).tcTypes.add(t);
       }
       checked++;
       const label = ["Std","Rpd","Blz"][t - 1];
@@ -211,7 +219,10 @@ async function main() {
     try {
       const dbOpp = await findOrInsertPlayer(opp.name, opp.fide_id, opp.federation, opp.title);
       if (dbOpp.id === mainPlayer.id) continue;
-      await linkPlayers(mainPlayer.id, dbOpp.id, opp.period);
+      // Insert one link per TC type so classical_count/rapid_count/blitz_count are set correctly
+      for (const tcType of opp.tcTypes) {
+        await linkPlayers(mainPlayer.id, dbOpp.id, opp.period, tcType);
+      }
       linked++;
       process.stdout.write(`\r  Linked ${linked}/${allOpponents.size}: ${dbOpp.name.slice(0, 40)}   `);
     } catch (e) {
