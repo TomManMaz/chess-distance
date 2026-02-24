@@ -212,6 +212,15 @@ export default function Home() {
         >
           CSauthors.net/distance
         </a>
+        .{" "}
+        <a
+          href="https://github.com/TomManMaz/chess-distance"
+          className="underline hover:text-[var(--board-dark)]"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Source on GitHub
+        </a>
         .
         <br />
         <span className="text-xs">
