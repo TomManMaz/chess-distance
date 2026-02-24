@@ -1,65 +1,122 @@
-// Remove players who appear to be data anomalies:
-// players who are linked to BOTH pre-1900 historical players AND modern players
-// (which would indicate a name collision across eras)
-// For now, just remove orphaned/suspicious cross-era links
+/**
+ * validate-data.js — Find and optionally remove cross-era false connections.
+ *
+ * A cross-era anomaly: two players who couldn't have played each other because
+ * their known game dates are separated by decades (e.g. one active only
+ * before 1910, the other only after 1950).
+ *
+ * Usage:
+ *   node scripts/validate-data.js            # report anomalies (dry-run)
+ *   node scripts/validate-data.js --fix      # delete anomalous pairs
+ *
+ * Heuristic:
+ *   1. Compute each player's era from their dated opponent pairs.
+ *   2. Flag any pair where one player's last known game is before PRE_CUTOFF
+ *      and the other's first known game is after POST_CUTOFF.
+ *   3. Also flag pairs where one player has a FIDE ID (registered post-1970)
+ *      and the other's era is entirely before PRE_CUTOFF.
+ */
 
 const { neon } = require("@neondatabase/serverless");
+
 const sql = neon(process.env.DATABASE_URL);
+const FIX = process.argv.includes("--fix");
+
+const PRE_CUTOFF  = "1910-01-01"; // player's last game before this → historical
+const POST_CUTOFF = "1950-01-01"; // player's first game after this  → modern
 
 async function main() {
-  // Find players whose name appears in both historical contexts (no FIDE ID, linked to Morphy era)
-  // AND modern TWIC context - these are likely name collisions
 
-  // Specifically: Morphy (id 157633) played in 1850s-1860s
-  // His real opponents should only link to other pre-1900 players
-  // Any opponent of Morphy who ALSO has links to post-1995 TWIC players is suspicious
+  // Find suspicious pairs entirely in SQL — no full table scan in JS
+  console.log("\nScanning all opponent pairs for cross-era anomalies (SQL)...");
 
-  // Get Morphy's opponents
-  const morphyOpp = await sql`
-    SELECT CASE WHEN o.player_a_id = 157633 THEN o.player_b_id ELSE o.player_a_id END AS opp_id, o.game_count
-    FROM opponents o WHERE o.player_a_id = 157633 OR o.player_b_id = 157633
+  const suspicious = await sql`
+    WITH player_era AS (
+      SELECT player_id,
+             MIN(first_game_date) AS first_game,
+             MAX(last_game_date)  AS last_game
+      FROM (
+        SELECT player_a_id AS player_id, first_game_date, last_game_date FROM opponents WHERE first_game_date IS NOT NULL
+        UNION ALL
+        SELECT player_b_id AS player_id, first_game_date, last_game_date FROM opponents WHERE first_game_date IS NOT NULL
+      ) t
+      GROUP BY player_id
+    )
+    SELECT
+      o.player_a_id, o.player_b_id,
+      o.game_count, o.first_game_date, o.event_sample,
+      pa.name AS name_a, pa.fide_id AS fide_a,
+      pb.name AS name_b, pb.fide_id AS fide_b,
+      ea.first_game AS era_a_first, ea.last_game AS era_a_last,
+      eb.first_game AS era_b_first, eb.last_game AS era_b_last
+    FROM opponents o
+    JOIN players pa ON pa.id = o.player_a_id
+    JOIN players pb ON pb.id = o.player_b_id
+    LEFT JOIN player_era ea ON ea.player_id = o.player_a_id
+    LEFT JOIN player_era eb ON eb.player_id = o.player_b_id
+    WHERE
+      -- Check 1: dated eras don't overlap
+      (ea.last_game < ${PRE_CUTOFF} AND eb.first_game > ${POST_CUTOFF})
+      OR (eb.last_game < ${PRE_CUTOFF} AND ea.first_game > ${POST_CUTOFF})
+      -- Check 2: FIDE-registered player linked to pre-1910 historical player
+      OR (pa.fide_id IS NOT NULL AND eb.last_game < ${PRE_CUTOFF})
+      OR (pb.fide_id IS NOT NULL AND ea.last_game < ${PRE_CUTOFF})
+    ORDER BY ea.last_game NULLS LAST, eb.last_game NULLS LAST
   `;
 
-  console.log(`Morphy has ${morphyOpp.length} opponents`);
-
-  // For each of Morphy's opponents, check if they have dates in their connections
-  // that suggest they're modern players (post-1950)
-  let suspicious = [];
-
-  for (const opp of morphyOpp) {
-    const latestGame = await sql`
-      SELECT MAX(last_game_date) as latest FROM opponents
-      WHERE player_a_id = ${opp.opp_id} OR player_b_id = ${opp.opp_id}
-    `;
-    const latest = latestGame[0].latest;
-    if (latest && latest > '1920-01-01') {
-      const p = await sql`SELECT name, fide_id FROM players WHERE id = ${opp.opp_id}`;
-      suspicious.push({ id: opp.opp_id, name: p[0].name, fide_id: p[0].fide_id, latest, games: opp.game_count });
-    }
+  // Check 3: players with FIDE IDs directly connected to known pre-1900 anchors
+  // (catches cases where historical games have null dates)
+  // Known pre-1900 player IDs: Morphy=157633, Anderssen=157588
+  const PRE1900_ANCHORS = [157633, 157588];
+  const anchorSuspicious = await sql`
+    SELECT
+      o.player_a_id, o.player_b_id,
+      o.game_count, o.first_game_date, o.event_sample,
+      pa.name AS name_a, pa.fide_id AS fide_a,
+      pb.name AS name_b, pb.fide_id AS fide_b,
+      NULL::timestamptz AS era_a_first, NULL::timestamptz AS era_a_last,
+      NULL::timestamptz AS era_b_first, NULL::timestamptz AS era_b_last
+    FROM opponents o
+    JOIN players pa ON pa.id = o.player_a_id
+    JOIN players pb ON pb.id = o.player_b_id
+    WHERE
+      (o.player_a_id = ANY(${PRE1900_ANCHORS}) AND pb.fide_id IS NOT NULL)
+      OR (o.player_b_id = ANY(${PRE1900_ANCHORS}) AND pa.fide_id IS NOT NULL)
+  `;
+  const seen = new Set(suspicious.map(s => `${s.player_a_id}:${s.player_b_id}`));
+  for (const s of anchorSuspicious) {
+    const key = `${s.player_a_id}:${s.player_b_id}`;
+    if (!seen.has(key)) { suspicious.push(s); seen.add(key); }
   }
 
-  console.log(`\nSuspicious cross-era Morphy opponents (${suspicious.length}):`);
+  if (suspicious.length === 0) {
+    console.log("  No cross-era anomalies found.");
+    return;
+  }
+
+  console.log(`\nFound ${suspicious.length} suspicious pair(s):\n`);
   for (const s of suspicious) {
-    console.log(`  ${s.name} (id=${s.id}, fide_id=${s.fide_id}, latest_game=${s.latest}, games=${s.games})`);
+    const eraA = s.era_a_last ? s.era_a_last.toISOString().slice(0,10) : "?";
+    const eraB = s.era_b_first ? s.era_b_first.toISOString().slice(0,10) : "?";
+    console.log(`  [${s.player_a_id} ↔ ${s.player_b_id}] ${s.name_a} / ${s.name_b}`);
+    console.log(`    Games: ${s.game_count}  Event: ${s.event_sample ?? "(no date)"}`);
+    console.log(`    Era A last: ${eraA}  Era B first: ${eraB}`);
   }
 
-  // Remove the suspicious links
-  if (suspicious.length > 0) {
-    for (const s of suspicious) {
-      await sql`
-        DELETE FROM opponents
-        WHERE (player_a_id = 157633 AND player_b_id = ${s.id})
-        OR (player_a_id = ${s.id} AND player_b_id = 157633)
-      `;
-      console.log(`Removed link: Morphy <-> ${s.name}`);
-    }
+  if (!FIX) {
+    console.log(`\nRun with --fix to delete these ${suspicious.length} pair(s).`);
+    return;
   }
 
-  // Re-check Morphy's connections
-  const remaining = await sql`
-    SELECT count(*) FROM opponents WHERE player_a_id = 157633 OR player_b_id = 157633
-  `;
-  console.log(`\nMorphy now has ${remaining[0].count} opponents`);
+  console.log(`\nDeleting ${suspicious.length} anomalous pair(s)...`);
+  for (const s of suspicious) {
+    await sql`
+      DELETE FROM opponents
+      WHERE player_a_id = ${s.player_a_id} AND player_b_id = ${s.player_b_id}
+    `;
+    console.log(`  Deleted: ${s.name_a} ↔ ${s.name_b}`);
+  }
+  console.log("Done.");
 }
 
-main().catch(console.error);
+main().catch((e) => { console.error(e.message); process.exit(1); });
