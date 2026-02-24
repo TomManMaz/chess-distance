@@ -30,10 +30,11 @@ export async function GET(request: NextRequest) {
   const result = await findShortestPath(fromId, toId, tcFilter);
 
   if (!result) {
-    return NextResponse.json(
-      { error: "No path found between these players" },
-      { status: 404 }
-    );
+    const error =
+      tcFilter === "classical"
+        ? "No path found through classical games only. Try disabling the filter."
+        : "No path found between these players";
+    return NextResponse.json({ error, tcFiltered: tcFilter === "classical" }, { status: 404 });
   }
 
   return NextResponse.json(result);

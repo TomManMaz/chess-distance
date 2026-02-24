@@ -16,17 +16,20 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
   const [classicalOnly, setClassicalOnly] = useState(false);
+  const [tcFiltered, setTcFiltered] = useState(false);
 
   async function calculateWith(a: SearchResult, b: SearchResult, useClassicalOnly?: boolean) {
     setLoading(true);
     setError(null);
     setResult(null);
+    setTcFiltered(false);
     const tc = (useClassicalOnly ?? classicalOnly) ? "classical" : "all";
     try {
       const res = await fetch(`/api/distance?from=${a.id}&to=${b.id}&tc=${tc}`);
       if (!res.ok) {
         const data = await res.json();
         setError(data.error || "Failed to calculate distance");
+        setTcFiltered(!!data.tcFiltered);
         return;
       }
       setResult(await res.json());
@@ -135,6 +138,20 @@ export default function Home() {
       {error && (
         <div className="mt-6 p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 text-center">
           {error}
+          {tcFiltered && (
+            <div className="mt-2">
+              <button
+                onClick={() => {
+                  setClassicalOnly(false);
+                  setTcFiltered(false);
+                  if (playerA && playerB) calculateWith(playerA, playerB, false);
+                }}
+                className="text-sm underline cursor-pointer hover:text-red-900"
+              >
+                Try with all games
+              </button>
+            </div>
+          )}
         </div>
       )}
 
