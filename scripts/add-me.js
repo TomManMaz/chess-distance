@@ -73,10 +73,11 @@ async function main() {
     // Create opponent pair (a < b)
     const [aId, bId] = meId < oppId ? [meId, oppId] : [oppId, meId];
     await sql`
-      INSERT INTO opponents (player_a_id, player_b_id, game_count, first_game_date, last_game_date)
-      VALUES (${aId}, ${bId}, 1, '2023-10-01', '2023-10-01')
+      INSERT INTO opponents (player_a_id, player_b_id, game_count, classical_count, first_game_date, last_game_date)
+      VALUES (${aId}, ${bId}, 1, 1, '2023-10-01', '2023-10-01')
       ON CONFLICT (player_a_id, player_b_id) DO UPDATE SET
         game_count = opponents.game_count + 1,
+        classical_count = opponents.classical_count + 1,
         last_game_date = GREATEST(opponents.last_game_date, '2023-10-01')
     `;
     console.log(`  Linked to Mannelli Mazzoli`);

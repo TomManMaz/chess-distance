@@ -16,13 +16,14 @@ A web app that calculates the shortest "opponent path" between any two chess pla
 - **ETL Pipeline:** `scripts/` — download PGN Mentor files + TWIC zips + FIDE XML, parse, batch-insert into PostgreSQL
 
 ## Current Database State
-- **88,060 players** (historical from 1850s + modern FIDE-rated players; will grow significantly after FIDE XML import)
-- **698,791 opponent pairs** from 1,068,273 games (will grow after TWIC 1090–1632 download)
+- **~70,000–76,000 players** (historical from 1850s + modern FIDE-rated players)
+- **~939,000 opponent pairs** from ~1,616,000 games (TWIC 920–1633 + PGN Mentor)
 - Morphy (1850s) is connected; Morphy → Carlsen distance = 8 (via real historical chain through Anderssen)
 - Dummy/computer players (NN, Comp*) have been removed to prevent false short-circuit paths
-- **Mannelli Mazzoli, Tommaso** (FIDE 2842411) is in the DB with Morphy number = 8
+- **Mannelli Mazzoli, Tommaso** (FIDE 2842411) is in the DB with Morphy number = 8 (7 connections from Oct 2023 tournament, all classical)
 - False Morphy–Knott link removed: Simon JB Knott (b.1958) cannot have played Morphy (d.1884)
 - `opponents` table has `classical_count`, `rapid_count`, `blitz_count`, `event_sample` columns (added by migration script)
+- ~95% of opponent pairs have `classical_count > 0` — classical-only filter works well
 
 ## Key Commands
 ```bash
