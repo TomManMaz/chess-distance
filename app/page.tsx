@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PlayerSearch from "@/components/PlayerSearch";
 import DistanceResultComponent from "@/components/DistanceResult";
 import Stats from "@/components/Stats";
@@ -52,8 +52,6 @@ export default function Home() {
         fetch("/api/search?q=Carlsen").then(r => r.json()),
         fetch("/api/search?q=Morphy").then(r => r.json()),
       ]);
-      // Pick the most-connected result (highest id tends to come from FIDE XML with full data),
-      // but prefer an exact name match for well-known players.
       const carlsen: SearchResult | undefined =
         resA.find((p: SearchResult) => p.name === "Carlsen, Magnus") ||
         resA.find((p: SearchResult) => /carlsen.*magnus|magnus.*carlsen/i.test(p.name)) ||
@@ -72,6 +70,10 @@ export default function Home() {
     }
   }
 
+  // Auto-load example on first render
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { tryExample(); }, []);
+
   function handleToggleClassical() {
     const next = !classicalOnly;
     setClassicalOnly(next);
@@ -86,30 +88,21 @@ export default function Home() {
         </h1>
       </div>
 
-      <div className="text-center mb-6 text-[var(--text-secondary)]">
+      <div className="mb-2 text-[var(--text-secondary)]">
         Find the path between two chess players:
       </div>
 
-      <div className="space-y-4">
-        <PlayerSearch label="Player A" onSelect={setPlayerA} externalPlayer={externalA} />
-        <PlayerSearch label="Player B" onSelect={setPlayerB} externalPlayer={externalB} />
-        <div className="text-center text-sm text-[var(--text-secondary)]">
-          Try an example:{" "}
-          <button
-            onClick={tryExample}
-            className="text-[var(--accent)] hover:text-[var(--board-dark)] underline cursor-pointer transition-colors"
-          >
-            Magnus Carlsen → Paul Morphy
-          </button>
-        </div>
+      <div className="space-y-2">
+        <PlayerSearch placeholder="First player" onSelect={setPlayerA} externalPlayer={externalA} />
+        <PlayerSearch placeholder="Second player" onSelect={setPlayerB} externalPlayer={externalB} />
 
-        {/* Classical-only toggle */}
-        <div className="flex items-center justify-center gap-3">
+        {/* Classical-only toggle + calculate button on same row */}
+        <div className="flex items-center gap-3 pt-1">
           <button
             role="switch"
             aria-checked={classicalOnly}
             onClick={handleToggleClassical}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
               classicalOnly ? "bg-[var(--board-dark)]" : "bg-gray-300"
             }`}
           >
@@ -119,20 +112,19 @@ export default function Home() {
               }`}
             />
           </button>
-          <span className="text-sm text-[var(--text-secondary)]">
+          <span className="text-sm text-[var(--text-secondary)] grow">
             Classical games only
           </span>
+          <button
+            onClick={() => calculate()}
+            disabled={!playerA || !playerB || loading}
+            className="py-2 px-5 bg-[var(--board-dark)] text-white font-semibold
+                       rounded-lg hover:bg-[var(--board-dark)]/90 disabled:opacity-50
+                       disabled:cursor-not-allowed transition-all text-sm shrink-0"
+          >
+            {loading ? "Calculating…" : "Find path"}
+          </button>
         </div>
-
-        <button
-          onClick={() => calculate()}
-          disabled={!playerA || !playerB || loading}
-          className="w-full py-3 px-6 bg-[var(--board-dark)] text-white font-semibold
-                     rounded-lg hover:bg-[var(--board-dark)]/90 disabled:opacity-50
-                     disabled:cursor-not-allowed transition-all text-lg"
-        >
-          {loading ? "Calculating..." : "Calculate Distance"}
-        </button>
       </div>
 
       {error && (

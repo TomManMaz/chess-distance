@@ -5,12 +5,12 @@ import type { SearchResult } from "@/lib/types";
 import { federationFlag } from "@/lib/federation-flag";
 
 interface PlayerSearchProps {
-  label: string;
+  placeholder?: string;
   onSelect: (player: SearchResult | null) => void;
   externalPlayer?: SearchResult | null; // set from outside to pre-fill
 }
 
-export default function PlayerSearch({ label, onSelect, externalPlayer }: PlayerSearchProps) {
+export default function PlayerSearch({ placeholder = "Type a player name...", onSelect, externalPlayer }: PlayerSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -97,15 +97,12 @@ export default function PlayerSearch({ label, onSelect, externalPlayer }: Player
 
   return (
     <div ref={containerRef} className="relative w-full">
-      <label className="block text-sm font-medium mb-1 text-[var(--text-secondary)]">
-        {label}
-      </label>
       <input
         type="text"
         value={query}
         onChange={(e) => handleInputChange(e.target.value)}
         onFocus={() => results.length > 0 && !selected && setIsOpen(true)}
-        placeholder="Type a player name..."
+        placeholder={placeholder}
         className="w-full px-4 py-3 border-2 border-[var(--board-dark)]/30 rounded-lg
                    focus:outline-none focus:border-[var(--board-dark)] bg-white
                    text-base transition-colors"
