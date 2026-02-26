@@ -145,20 +145,23 @@ async function upsertPlayers(players, sql) {
       if (!fideId || !p.name) continue;
       // Prefer OTB title, fall back to women's title
       const title = (p.title && p.title.trim()) || (p.w_title && p.w_title.trim()) || null;
-      const base = k * 4;
-      clauses.push(`($${base + 1}::integer, $${base + 2}, $${base + 3}, $${base + 4})`);
-      params.push(fideId, p.name.trim(), p.country || null, title || null);
+      // Extract birth year from <birthday>YYYY-MM-DD</birthday> or <birthday>YYYY</birthday>
+      const birthYear = p.birthday ? parseInt(p.birthday.substring(0, 4)) || null : null;
+      const base = k * 5;
+      clauses.push(`($${base + 1}::integer, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}::smallint)`);
+      params.push(fideId, p.name.trim(), p.country || null, title || null, birthYear);
     }
 
     if (!clauses.length) continue;
 
     await sql.query(
-      `INSERT INTO players (fide_id, name, federation, title)
+      `INSERT INTO players (fide_id, name, federation, title, birth_year)
        VALUES ${clauses.join(", ")}
        ON CONFLICT (fide_id) DO UPDATE SET
          name       = EXCLUDED.name,
          federation = EXCLUDED.federation,
-         title      = COALESCE(EXCLUDED.title, players.title)`,
+         title      = COALESCE(EXCLUDED.title, players.title),
+         birth_year = COALESCE(players.birth_year, EXCLUDED.birth_year)`,
       params
     );
 

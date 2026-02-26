@@ -27,7 +27,7 @@ const sql = neon(DB_URL);
 async function mergeInto(keepId, dropId, dryRun) {
   if (dryRun) return;
 
-  // Inherit title / federation if the canonical is missing them
+  // Inherit title / federation
   await sql`
     UPDATE players
     SET
@@ -35,6 +35,22 @@ async function mergeInto(keepId, dropId, dryRun) {
       federation = COALESCE(players.federation, (SELECT federation FROM players WHERE id = ${dropId}))
     WHERE id = ${keepId}
   `;
+
+  // Inherit fide_id only if: keep has none, AND no other player already holds it
+  const [keepRow] = await sql`SELECT fide_id FROM players WHERE id = ${keepId}`;
+  const [dropRow] = await sql`SELECT fide_id FROM players WHERE id = ${dropId}`;
+  if (!keepRow.fide_id && dropRow.fide_id) {
+    const conflict = await sql`
+      SELECT 1 FROM players WHERE fide_id = ${dropRow.fide_id} AND id != ${dropId} AND id != ${keepId} LIMIT 1
+    `;
+    if (conflict.length === 0) {
+      try {
+        await sql`UPDATE players SET fide_id = ${dropRow.fide_id} WHERE id = ${keepId}`;
+      } catch (e) {
+        if (e.code !== "23505") throw e; // only swallow unique constraint violations
+      }
+    }
+  }
 
   // Get all opponent rows involving dropId
   const rows = await sql`
@@ -117,6 +133,36 @@ function pickCanonical(players) {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 0: Delete corrupted player entries (colon-joined names are parsing
+//          artifacts where two player names got concatenated, e.g.
+//          "Adams, Michael:Mortazavi, Ali"). Remove their opponent pairs first.
+// ---------------------------------------------------------------------------
+async function phase0CorruptedNames(dryRun) {
+  console.log("\n=== Phase 0: Corrupted name entries (colon artifacts) ===");
+
+  const corrupt = await sql`SELECT id, name FROM players WHERE name LIKE '%:%' ORDER BY name`;
+  console.log(`  Found ${corrupt.length} corrupted entries`);
+
+  if (corrupt.length === 0) return 0;
+
+  for (const p of corrupt) {
+    const pairCount = (await sql`
+      SELECT COUNT(*) AS n FROM opponents WHERE player_a_id = ${p.id} OR player_b_id = ${p.id}
+    `)[0].n;
+
+    if (dryRun) {
+      console.log(`  [DRY-RUN] Delete "${p.name}" (id=${p.id}, ${pairCount} opponent pairs)`);
+    } else {
+      await sql`DELETE FROM opponents WHERE player_a_id = ${p.id} OR player_b_id = ${p.id}`;
+      await sql`DELETE FROM players WHERE id = ${p.id}`;
+      console.log(`  Deleted "${p.name}" (${pairCount} pairs removed)`);
+    }
+  }
+
+  return corrupt.length;
+}
+
+// ---------------------------------------------------------------------------
 // Phase 1: Exact duplicates (same LOWER(TRIM(name)))
 // ---------------------------------------------------------------------------
 async function phase1ExactDuplicates(dryRun) {
@@ -176,10 +222,14 @@ async function phase1ExactDuplicates(dryRun) {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 2: Abbreviated-name duplicates ("Lastname, G" → "Lastname, Garry")
+// Phase 2: Abbreviated/truncated-name duplicates
+//   ("Lastname, G" → "Lastname, Garry", "Lastname, Gar" → "Lastname, Garry", etc.)
+//   Uses prefix matching with no character limit: if one player's first name
+//   is a proper prefix of another's, the shorter one is merged into the longer.
+//   Always keeps the longer (fuller) name as canonical.
 // ---------------------------------------------------------------------------
 async function phase2AbbreviatedNames(dryRun) {
-  console.log("\n=== Phase 2: Abbreviated-name duplicates ===");
+  console.log("\n=== Phase 2: Abbreviated/truncated-name duplicates ===");
 
   // Fetch all players from DB
   const allPlayers = await sql`
@@ -200,72 +250,61 @@ async function phase2AbbreviatedNames(dryRun) {
   const byLastName = new Map();
   for (const p of allPlayers) {
     const commaIdx = p.name.indexOf(",");
-    if (commaIdx === -1) continue; // No comma — skip (can't parse "Lastname, First")
+    if (commaIdx === -1) continue;
     const lastName = p.name.substring(0, commaIdx).trim().toLowerCase();
+    const firstName = p.name.substring(commaIdx + 1).trim();
+    if (!firstName) continue;
     if (!byLastName.has(lastName)) byLastName.set(lastName, []);
-    byLastName.get(lastName).push(p);
+    byLastName.get(lastName).push({ ...p, firstName });
   }
-
-  // Regex: first name part is a single letter optionally followed by a period (and nothing else)
-  // Match 1–4 letter first-name abbreviations (e.g. ", A" / ", Ana" / ", Gar.")
-  const ABBREV_RE = /^,\s*([A-Za-z]{1,4})\.?\s*$/;
 
   let merged = 0;
   let ambiguous = 0;
 
-  for (const [lastName, players] of byLastName) {
+  for (const [, players] of byLastName) {
     if (players.length < 2) continue;
 
-    // Partition into abbreviated and full-name entries
-    const abbreviated = [];
-    const fullName = [];
+    // Sort by first name length ascending — process more-abbreviated names first
+    const sorted = [...players].sort((a, b) => a.firstName.length - b.firstName.length);
+    // Track players dropped within this group so they're excluded from further matching
+    const dropped = new Set();
 
-    for (const p of players) {
-      const afterComma = p.name.substring(p.name.indexOf(","));
-      if (ABBREV_RE.test(afterComma)) {
-        const abbrev = afterComma.match(ABBREV_RE)[1].toUpperCase();
-        abbreviated.push({ ...p, abbrev });
-      } else {
-        fullName.push(p);
-      }
-    }
+    for (const player of sorted) {
+      if (dropped.has(player.id)) continue;
 
-    if (abbreviated.length === 0) continue;
+      // Skip corrupted entries (colon-joined names are parsing artifacts)
+      if (player.name.includes(":")) continue;
 
-    for (const abbrevPlayer of abbreviated) {
-      // Find all full-name players whose first name starts with the same initial
-      const matches = fullName.filter(fp => {
-        const afterComma = fp.name.substring(fp.name.indexOf(",") + 1).trim();
-        return afterComma.toUpperCase().startsWith(abbrevPlayer.abbrev);
-      });
+      // Strip trailing period before comparison ("G." → "G", "Gar." → "Gar")
+      const firstNorm = player.firstName.replace(/\.\s*$/, "").trim().toUpperCase();
+      if (!firstNorm) continue;
+
+      // Find all same-group players whose first name starts with this player's
+      // first name AND is strictly longer (this player is an abbreviated form)
+      const matches = players.filter(q =>
+        q.id !== player.id &&
+        !dropped.has(q.id) &&
+        !q.name.includes(":") &&           // exclude corrupted entries as merge targets
+        q.firstName.toUpperCase().startsWith(firstNorm) &&
+        q.firstName.length > player.firstName.length
+      );
 
       if (matches.length === 0) continue;
 
       if (matches.length > 1) {
-        // Ambiguous — skip
         ambiguous++;
         if (dryRun) {
-          console.log(`  [AMBIGUOUS] "${abbrevPlayer.name}" matches ${matches.map(m => `"${m.name}"`).join(", ")}`);
+          console.log(`  [AMBIGUOUS] "${player.name}" matches ${matches.map(m => `"${m.name}"`).join(", ")}`);
         }
         continue;
       }
 
+      // Exactly one match — merge the shorter name into the longer one
       const canonical = matches[0];
-
-      // Decide which is the "real" canonical (might prefer the full-name one)
-      // Unless abbreviated player has a FIDE ID and the full-name one doesn't
-      let keepId, dropId, keepName, dropName;
-      if (abbrevPlayer.fide_id && !canonical.fide_id) {
-        keepId = abbrevPlayer.id;
-        keepName = abbrevPlayer.name;
-        dropId = canonical.id;
-        dropName = canonical.name;
-      } else {
-        keepId = canonical.id;
-        keepName = canonical.name;
-        dropId = abbrevPlayer.id;
-        dropName = abbrevPlayer.name;
-      }
+      const keepId   = canonical.id;
+      const keepName = canonical.name;
+      const dropId   = player.id;
+      const dropName = player.name;
 
       if (dryRun) {
         console.log(`  [DRY-RUN] Merge "${dropName}" (id=${dropId}) → "${keepName}" (id=${keepId})`);
@@ -275,16 +314,11 @@ async function phase2AbbreviatedNames(dryRun) {
         process.stdout.write(" done\n");
       }
       merged++;
-
-      // Remove the dropped player from the fullName list for subsequent iterations
-      const dropIdx = fullName.findIndex(fp => fp.id === dropId);
-      if (dropIdx !== -1) fullName.splice(dropIdx, 1);
-      const abbrevIdx = abbreviated.findIndex(ap => ap.id === dropId);
-      if (abbrevIdx !== -1) abbreviated.splice(abbrevIdx, 1);
+      dropped.add(dropId);
     }
   }
 
-  console.log(`  Merged ${merged} abbreviated duplicates`);
+  console.log(`  Merged ${merged} abbreviated/truncated duplicates`);
   console.log(`  Skipped ${ambiguous} ambiguous cases`);
   return merged;
 }
@@ -300,14 +334,16 @@ async function main() {
   const before = await sql`SELECT (SELECT count(*) FROM players) AS p, (SELECT count(*) FROM opponents) AS o`;
   console.log(`Before: ${before[0].p} players, ${before[0].o} opponent pairs`);
 
-  const exactMerged = await phase1ExactDuplicates(DRY_RUN);
-  const abbrevMerged = await phase2AbbreviatedNames(DRY_RUN);
+  const corruptDeleted = await phase0CorruptedNames(DRY_RUN);
+  const exactMerged    = await phase1ExactDuplicates(DRY_RUN);
+  const abbrevMerged   = await phase2AbbreviatedNames(DRY_RUN);
 
   const after = await sql`SELECT (SELECT count(*) FROM players) AS p, (SELECT count(*) FROM opponents) AS o`;
   console.log(`\n=== Summary ===`);
-  console.log(`  Exact duplicates merged:      ${exactMerged}`);
+  console.log(`  Corrupted entries deleted:     ${corruptDeleted}`);
+  console.log(`  Exact duplicates merged:       ${exactMerged}`);
   console.log(`  Abbreviated duplicates merged: ${abbrevMerged}`);
-  console.log(`  Total merges:                 ${exactMerged + abbrevMerged}`);
+  console.log(`  Total:                         ${corruptDeleted + exactMerged + abbrevMerged}`);
 
   if (!DRY_RUN) {
     console.log(`\nBefore: ${before[0].p} players, ${before[0].o} opponent pairs`);

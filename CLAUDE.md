@@ -41,8 +41,10 @@ node scripts/download-twic.js         # Download TWIC issues 1090–latest to da
 node scripts/download-fide-xml.js     # Download FIDE rating list XML → upsert all ~400K players
 
 # One-time migrations (run once against live DB):
-node scripts/migrate-add-time-controls.js   # Add classical_count, rapid_count, blitz_count, event_sample columns
-node scripts/deduplicate-players.js         # Merge duplicate player rows (run with --dry-run first)
+node scripts/migrate-add-time-controls.js        # Add classical_count, rapid_count, blitz_count, event_sample columns
+node scripts/migrate-add-birth-death-years.js    # Add birth_year, death_year columns
+node scripts/set-historical-dates.js             # Populate birth/death years for ~50 key historical players
+node scripts/deduplicate-players.js              # Merge duplicate player rows (run with --dry-run first)
 node scripts/deduplicate-players.js --dry-run
 
 # Utilities:
@@ -85,9 +87,18 @@ DATABASE_URL=... node scripts/validate-data.js --fix
 - `data/` — Downloaded PGN files (gitignored)
 
 ## Database Schema
-- `players` — id, name, fide_id (unique nullable), federation, title
+- `players` — id, name, fide_id (unique nullable), federation, title, birth_year, death_year
 - `opponents` — player_a_id, player_b_id (composite PK, a < b), game_count, first/last_game_date, classical_count, rapid_count, blitz_count, event_sample
+- `settings` — key, value (used by update-twic.js to track last_twic_issue)
 - Trigram index on `players.name` for fuzzy search (`pg_trgm` extension)
+
+## Chronological Edge Filter (bfs.ts)
+The BFS adjacency list skips edges where player lifespans provably don't overlap:
+- If player A's `death_year < player B's `birth_year` → skip (A died before B was born)
+- If player B's `death_year < player A's `birth_year` → skip
+- Only applied when both players have the relevant birth/death data
+- Historical death years are hardcoded via `set-historical-dates.js`
+- Modern birth years come from FIDE XML (`download-fide-xml.js`)
 
 ## Style Guidelines
 - Use Tailwind CSS utility classes with CSS custom properties for the chess color theme

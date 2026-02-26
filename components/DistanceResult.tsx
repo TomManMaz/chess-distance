@@ -232,8 +232,26 @@ function formatPlayerName(title: string | null, name: string, federation?: strin
   return flag ? `${flag} ${namePart}` : namePart;
 }
 
+function PlayerYears({ player }: { player: Player }) {
+  if (!player.birth_year) return null;
+  const years = player.death_year
+    ? `${player.birth_year}–${player.death_year}`
+    : `b. ${player.birth_year}`;
+  return (
+    <span className="ml-1.5 text-sm font-normal text-[var(--text-secondary)]">
+      ({years})
+    </span>
+  );
+}
+
 function PlayerLink({ player, className }: { player: Player; className?: string }) {
   const label = formatPlayerName(player.title, player.name, player.federation);
+  const inner = (
+    <>
+      {label}
+      <PlayerYears player={player} />
+    </>
+  );
   if (player.fide_id) {
     return (
       <a
@@ -242,9 +260,9 @@ function PlayerLink({ player, className }: { player: Player; className?: string 
         rel="noopener noreferrer"
         className={`hover:underline hover:text-[var(--accent)] transition-colors ${className ?? ""}`}
       >
-        {label}
+        {inner}
       </a>
     );
   }
-  return <span className={className}>{label}</span>;
+  return <span className={className}>{inner}</span>;
 }

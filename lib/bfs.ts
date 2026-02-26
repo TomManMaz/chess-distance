@@ -24,7 +24,13 @@ async function loadGraph(): Promise<GraphCache> {
 
   const sql = getDb();
 
-  const players = await sql`SELECT id, name, fide_id, federation, title FROM players`;
+  // Try to load birth_year/death_year; fall back to nulls if migration hasn't run yet
+  let players: { id: number; name: string; fide_id: number | null; federation: string | null; title: string | null; birth_year: number | null; death_year: number | null }[];
+  try {
+    players = await sql`SELECT id, name, fide_id, federation, title, birth_year, death_year FROM players` as typeof players;
+  } catch {
+    players = await sql`SELECT id, name, fide_id, federation, title, NULL::smallint AS birth_year, NULL::smallint AS death_year FROM players` as typeof players;
+  }
   const pMap = new Map<number, Player>();
   for (const row of players) {
     pMap.set(row.id as number, {
@@ -33,6 +39,8 @@ async function loadGraph(): Promise<GraphCache> {
       fide_id: row.fide_id as number | null,
       federation: row.federation as string | null,
       title: row.title as string | null,
+      birth_year: row.birth_year as number | null,
+      death_year: row.death_year as number | null,
     });
   }
 
@@ -50,6 +58,17 @@ async function loadGraph(): Promise<GraphCache> {
     const b = row.player_b_id as number;
     const gc = row.game_count as number;
     const cc = (row.classical_count as number) ?? gc;
+
+    // Chronological sanity check: skip edges where lifespans provably don't overlap.
+    // Only applied when we have the relevant birth/death data for both sides.
+    const pA = pMap.get(a);
+    const pB = pMap.get(b);
+    if (pA && pB) {
+      // A died before B was born
+      if (pA.death_year !== null && pB.birth_year !== null && pA.death_year < pB.birth_year) continue;
+      // B died before A was born
+      if (pB.death_year !== null && pA.birth_year !== null && pB.death_year < pA.birth_year) continue;
+    }
 
     if (!adj.has(a)) adj.set(a, []);
     if (!adj.has(b)) adj.set(b, []);
