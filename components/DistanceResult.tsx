@@ -141,6 +141,13 @@ export default function DistanceResult({ result }: DistanceResultProps) {
         </p>
       )}
 
+      {/* ── Warning if any player lacks birth year ── */}
+      {result.distance > 0 && result.path.some(n => !n.player.birth_year) && (
+        <p className="mt-2 text-sm text-amber-700">
+          ⚠ Some players in this path have no recorded dates — the path may contain historical errors.
+        </p>
+      )}
+
       {/* ── Path details (expandable) ── */}
       {result.distance > 0 && (
         <>

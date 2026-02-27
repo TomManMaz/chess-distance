@@ -50,6 +50,7 @@ const HISTORICAL_PLAYERS = [
   ["Alekhine, Alexander",       1892, 1946],
   ["Nimzowitsch, Aaron ",       1886, 1935],  // trailing space in DB
   ["Rubinstein, Akiba",         1882, 1961],
+  ["Bernstein, Ossip",          1882, 1962],
   ["Reti, Richard",             1889, 1929],
   ["Spielmann, Rudolf",         1883, 1942],
   ["Bogoljubow, Efim",          1889, 1952],  // "Bogoljubow" in DB
