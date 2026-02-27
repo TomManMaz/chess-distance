@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { SearchResult } from "@/lib/types";
 import { federationFlag } from "@/lib/federation-flag";
+import { toDisplayName } from "@/lib/names";
 
 interface PlayerSearchProps {
   placeholder?: string;
@@ -91,7 +92,7 @@ export default function PlayerSearch({ placeholder = "Type a player name...", on
     const flag = p.federation ? federationFlag(p.federation) : "";
     if (flag) parts.push(flag);
     if (p.title) parts.push(p.title);
-    parts.push(p.name);
+    parts.push(toDisplayName(p.name));
     return parts.join(" ");
   }
 
@@ -129,7 +130,7 @@ export default function PlayerSearch({ placeholder = "Type a player name...", on
                 <span className="font-semibold text-[var(--board-dark)]">
                   {r.title && `${r.title} `}
                 </span>
-                <span>{r.name}</span>
+                <span>{toDisplayName(r.name)}</span>
               </span>
             </li>
           ))}

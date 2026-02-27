@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import type { DistanceResult as DistanceResultType, Player } from "@/lib/types";
 import { federationFlag } from "@/lib/federation-flag";
+import { toDisplayName } from "@/lib/names";
 
 interface DistanceResultProps {
   result: DistanceResultType;
@@ -191,7 +192,7 @@ export default function DistanceResult({ result }: DistanceResultProps) {
 
 function formatPlayerName(title: string | null, name: string, federation?: string | null): string {
   const flag = federation ? federationFlag(federation) : "";
-  const namePart = title ? `${title} ${name}` : name;
+  const namePart = title ? `${title} ${toDisplayName(name)}` : toDisplayName(name);
   return flag ? `${flag} ${namePart}` : namePart;
 }
 
