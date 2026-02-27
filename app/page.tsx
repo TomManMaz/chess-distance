@@ -50,21 +50,22 @@ export default function Home() {
     try {
       const [resA, resB] = await Promise.all([
         fetch("/api/search?q=Carlsen").then(r => r.json()),
-        fetch("/api/search?q=Morphy").then(r => r.json()),
+        fetch("/api/search?q=Tal").then(r => r.json()),
       ]);
       const carlsen: SearchResult | undefined =
         resA.find((p: SearchResult) => p.name === "Carlsen, Magnus") ||
         resA.find((p: SearchResult) => /carlsen.*magnus|magnus.*carlsen/i.test(p.name)) ||
         resA.find((p: SearchResult) => p.name.toLowerCase().includes("carlsen"));
-      const morphy: SearchResult | undefined =
-        resB.find((p: SearchResult) => /morphy.*paul|paul.*morphy/i.test(p.name)) ||
-        resB.find((p: SearchResult) => p.name.toLowerCase().includes("morphy"));
-      if (!carlsen || !morphy) { setError("Example players not found."); return; }
+      const tal: SearchResult | undefined =
+        resB.find((p: SearchResult) => /^tal,\s*mihail$/i.test(p.name)) ||
+        resB.find((p: SearchResult) => /^tal,/i.test(p.name) && /mihail|mikhail/i.test(p.name)) ||
+        resB.find((p: SearchResult) => /^tal,/i.test(p.name));
+      if (!carlsen || !tal) { setError("Example players not found."); return; }
       setPlayerA(carlsen);
-      setPlayerB(morphy);
+      setPlayerB(tal);
       setExternalA(carlsen);
-      setExternalB(morphy);
-      await calculateWith(carlsen, morphy);
+      setExternalB(tal);
+      await calculateWith(carlsen, tal);
     } catch {
       setError("An error occurred. Please try again.");
     }

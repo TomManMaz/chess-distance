@@ -77,6 +77,42 @@ const HISTORICAL_PLAYERS = [
   ["Larsen, Bent",              1935, 2010],
   ["Fischer, Robert James",     1943, 2008],
   ["Ivkov, B",                  1929, 2011],  // only abbreviated name in DB
+
+  // Post-war / Soviet era (commonly appear in paths to modern players)
+  ["Korchnoi, V",               1931, 2016],
+  ["Polugaevsky, Lev",          1934, 1995],
+  ["Portisch, L",               1937, null],
+  ["Andersson, Ulf",            1951, null],
+  ["Timman, J",                 1951, null],  // Jan Timman
+  ["Spassky, Boris V",          1937, null],
+
+  // Modern world champions and top players (frequently in paths)
+  ["Karpov, Anatoly",           1951, null],
+  ["Kasparov, G",               1963, null],  // Garry Kasparov (abbreviated in DB)
+  ["Polgar, Ju",                1976, null],  // Judit Polgar
+  ["Anand, Viswanathan",        1969, null],
+  ["Kramnik, Vladimir",         1975, null],
+  ["Carlsen, Magnus",           1990, null],
+  ["Leko, Peter",               1979, null],
+  ["Adams, Michael",            1971, null],
+  ["Short, Nigel D",            1965, null],
+  ["Nakamura, Hikaru",          1987, null],
+  ["Aronian, Levon",            1982, null],
+  ["Giri, Anish",               1994, null],
+  ["Caruana, F",                1992, null],
+  ["Nepomniachtchi, I",         1990, null],
+  ["Ding, L",                   1992, null],
+  ["Grischuk, A",               1983, null],
+  ["Mamedyarov, S",             1985, null],
+  ["Radjabov, T",               1987, null],
+  ["Svidler, P",                1976, null],
+  ["Topalov, V",                1975, null],
+  ["Ivanchuk, V",               1969, null],
+  ["Gelfand, B",                1968, null],
+  ["Bareev, E",                 1966, null],
+  ["Shirov, A",                 1972, null],
+  ["Morozevich, A",             1977, null],
+  ["Ponomariov, R",             1983, null],
 ];
 
 async function main() {
