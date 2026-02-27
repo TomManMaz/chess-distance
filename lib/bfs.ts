@@ -18,6 +18,24 @@ interface GraphCache {
 let cache: GraphCache | null = null;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+/**
+ * Returns true when the two players could plausibly have played each other,
+ * i.e. their lifespans are not provably non-overlapping.
+ *
+ * Only applied when the relevant birth/death year data is available for both
+ * sides; missing data is treated as "unknown, allow the edge".
+ */
+export function isChronologicallyCompatible(
+  a: { birth_year: number | null; death_year: number | null },
+  b: { birth_year: number | null; death_year: number | null }
+): boolean {
+  // A died before B was born
+  if (a.death_year !== null && b.birth_year !== null && a.death_year < b.birth_year) return false;
+  // B died before A was born
+  if (b.death_year !== null && a.birth_year !== null && b.death_year < a.birth_year) return false;
+  return true;
+}
+
 async function loadGraph(): Promise<GraphCache> {
   const now = Date.now();
   if (cache && now - cache.loadedAt < CACHE_TTL_MS) return cache;
@@ -59,16 +77,9 @@ async function loadGraph(): Promise<GraphCache> {
     const gc = row.game_count as number;
     const cc = (row.classical_count as number) ?? gc;
 
-    // Chronological sanity check: skip edges where lifespans provably don't overlap.
-    // Only applied when we have the relevant birth/death data for both sides.
     const pA = pMap.get(a);
     const pB = pMap.get(b);
-    if (pA && pB) {
-      // A died before B was born
-      if (pA.death_year !== null && pB.birth_year !== null && pA.death_year < pB.birth_year) continue;
-      // B died before A was born
-      if (pB.death_year !== null && pA.birth_year !== null && pB.death_year < pA.birth_year) continue;
-    }
+    if (pA && pB && !isChronologicallyCompatible(pA, pB)) continue;
 
     if (!adj.has(a)) adj.set(a, []);
     if (!adj.has(b)) adj.set(b, []);
@@ -98,19 +109,22 @@ function getGameCount(
   return edgeWeight(entry, filter);
 }
 
-export async function findShortestPath(
+/**
+ * Pure bidirectional BFS that operates on an already-built adjacency map.
+ * No database calls — suitable for unit testing with mock graph data.
+ */
+export function findShortestPathFromGraph(
+  adj: Map<number, AdjEntry[]>,
+  pMap: Map<number, Player>,
   fromId: number,
   toId: number,
   tcFilter: TimeControlFilter = "all"
-): Promise<DistanceResult | null> {
+): DistanceResult | null {
   if (fromId === toId) {
-    const { playersMap: pMap } = await loadGraph();
     const player = pMap.get(fromId);
     if (!player) return null;
     return { distance: 0, path: [{ player, game_count: null }] };
   }
-
-  const { adjacency: adj, playersMap: pMap } = await loadGraph();
 
   if (!adj.has(fromId) || !adj.has(toId)) return null;
 
@@ -131,7 +145,6 @@ export async function findShortestPath(
       for (const node of frontierForward) {
         const neighbors = adj.get(node);
         if (!neighbors) continue;
-        // Filter by time control and sort by weight descending
         const sorted = neighbors
           .filter((e) => edgeWeight(e, tcFilter) > 0)
           .sort((a, b) => edgeWeight(b, tcFilter) - edgeWeight(a, tcFilter));
@@ -194,4 +207,13 @@ export async function findShortestPath(
   });
 
   return { distance: fullPath.length - 1, path: result };
+}
+
+export async function findShortestPath(
+  fromId: number,
+  toId: number,
+  tcFilter: TimeControlFilter = "all"
+): Promise<DistanceResult | null> {
+  const { adjacency: adj, playersMap: pMap } = await loadGraph();
+  return findShortestPathFromGraph(adj, pMap, fromId, toId, tcFilter);
 }

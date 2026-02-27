@@ -43,9 +43,13 @@ node scripts/download-fide-xml.js     # Download FIDE rating list XML → upsert
 # One-time migrations (run once against live DB):
 node scripts/migrate-add-time-controls.js        # Add classical_count, rapid_count, blitz_count, event_sample columns
 node scripts/migrate-add-birth-death-years.js    # Add birth_year, death_year columns
+node scripts/migrate-add-indexes.js              # Add partial indexes on players(birth_year/death_year)
+node scripts/migrate-add-bfs-function.js         # Install find_chess_path() PL/pgSQL function in DB
 node scripts/set-historical-dates.js             # Populate birth/death years for ~50 key historical players
 node scripts/deduplicate-players.js              # Merge duplicate player rows (run with --dry-run first)
 node scripts/deduplicate-players.js --dry-run
+
+npm test                                         # Run unit tests (Vitest, no DB required)
 
 # Utilities:
 node scripts/find-players.js          # Search PGN files for a player name

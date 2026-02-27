@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "download-twic": "npx tsx scripts/download-twic.ts",
     "parse-pgn": "npx tsx scripts/parse-pgn.ts",
     "build-graph": "npx tsx scripts/build-graph.ts",
@@ -28,6 +30,7 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
   }
 }
