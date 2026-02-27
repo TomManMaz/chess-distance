@@ -117,7 +117,7 @@ export default function DistanceResult({ result }: DistanceResultProps) {
         </div>
       )}
 
-      {/* ── Summary sentence (csauthors-style) ── */}
+      {/* ── Summary sentence with inline toggle ── */}
       {result.distance === 0 ? (
         <p className="text-lg text-[var(--board-dark)]">
           <PlayerLink player={first.player} className="font-bold" /> is the same player.
@@ -129,20 +129,20 @@ export default function DistanceResult({ result }: DistanceResultProps) {
           <PlayerLink player={last.player} className="font-bold" />
           {" are "}
           <span className="font-bold text-[var(--accent)]">{result.distance}</span>
-          {result.distance === 1 ? " opponent apart." : " opponents apart."}
+          {result.distance === 1 ? " opponent apart" : " opponents apart"}
+          {" · "}
+          <button
+            onClick={() => setShowDetails(!showDetails)}
+            className="text-sm text-[var(--accent)] hover:text-[var(--board-dark)] transition-colors cursor-pointer"
+          >
+            {showDetails ? "hide path ▴" : "show path ▾"}
+          </button>
         </p>
       )}
 
       {/* ── Path details (expandable) ── */}
       {result.distance > 0 && (
         <>
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="mt-3 text-sm text-[var(--accent)] hover:text-[var(--board-dark)] transition-colors cursor-pointer"
-          >
-            {showDetails ? "▾ hide path" : "▸ show path"}
-          </button>
-
           {showDetails && (
             <div className="mt-4 inline-block text-left">
               {/* First player */}
