@@ -4,13 +4,14 @@
  * Detects and removes "false bridge" opponent pairs — edges where:
  *   1. One player has a known death_year (historical player)
  *   2. The edge has no game date (null first_game_date)
- *   3. The other player is provably a different person, detected via either:
- *      a) They have modern dated games after death_year + 80 years, OR
- *      b) They have connections to other players born AFTER the historical
- *         player's death_year (proving they were active in a later era)
+ *   3. The other player has modern dated games more than 80 years after the
+ *      historical player died — proving it's a different person sharing the
+ *      same abbreviated name.
  *
- * Check (a) catches: Reti→Steiner,B (Steiner has 2012+ games, Reti d.1929+80=2009)
- * Check (b) catches: Morphy→Stone,J (Stone also played Tartakower b.1887, Morphy d.1884)
+ * The 80-year cutoff only fires for very old figures:
+ *   Morphy d.1884 → cutoff 1964  (Reti d.1929 → cutoff 2009)
+ * and never for 20th-century masters:
+ *   Tal d.1992 → cutoff 2072 (never reached)
  *
  * Usage:
  *   DATABASE_URL=... node scripts/fix-historical-bridges.js          # dry run
@@ -57,10 +58,10 @@ async function main() {
       // Skip if the opponent already has a death year (clearly another historical player)
       if (edge.opp_death !== null) continue;
 
-      // Check (a): opponent has dated games more than 80 years after the historical
+      // Check: opponent has dated games more than 80 years after the historical
       // player died. 80 years is beyond any plausible chess career, so this only
-      // fires for very old figures (Morphy d.1884→2009, Reti d.1929→2009) and never
-      // for 20th-century masters (Tal d.1992→2072, never reached).
+      // fires for very old figures (Morphy d.1884→cutoff 1964, Reti d.1929→2009)
+      // and never for 20th-century masters (Tal d.1992→2072, never reached).
       const cutoff = `${hist.death_year + 80}-01-01`;
       const [{ cnt }] = await sql`
         SELECT COUNT(*) AS cnt
@@ -79,35 +80,6 @@ async function main() {
           a_id: edge.player_a_id,
           b_id: edge.player_b_id,
         });
-        continue;
-      }
-
-      // Check (b): opponent connects to a player whose birth_year > hist.death_year,
-      // meaning the opponent was active in a later era and cannot be the same person
-      // who played the historical player.
-      // (e.g. Stone,J played both Morphy d.1884 and Tartakower b.1887 — impossible)
-      const [{ later }] = await sql`
-        SELECT COUNT(*) AS later
-        FROM opponents o2
-        JOIN players p2 ON p2.id = CASE
-          WHEN o2.player_a_id = ${edge.opp_id} THEN o2.player_b_id
-          ELSE o2.player_a_id
-        END
-        WHERE (o2.player_a_id = ${edge.opp_id} OR o2.player_b_id = ${edge.opp_id})
-          AND p2.birth_year > ${hist.death_year}
-          AND p2.id != ${hist.id}
-      `;
-
-      if (parseInt(later) > 0) {
-        toDelete.push({
-          hist_name: hist.name,
-          hist_death: hist.death_year,
-          opp_name: edge.opp_name,
-          reason: `connects to player(s) born after ${hist.death_year}`,
-          event: edge.event_sample,
-          a_id: edge.player_a_id,
-          b_id: edge.player_b_id,
-        });
       }
     }
   }
@@ -119,7 +91,7 @@ async function main() {
 
   console.log(`Found ${toDelete.length} false bridge(s):\n`);
   for (const d of toDelete) {
-    console.log(`  ⚠️  ${d.hist_name} (d.${d.hist_death}) ↔ ${d.opp_name}  [${d.event}]  — ${d.reason}`);
+    console.log(`  ⚠️  ${d.hist_name} (d.${d.hist_death}) ↔ ${d.opp_name}  [${d.event}]`);
   }
 
   if (!FIX) {
