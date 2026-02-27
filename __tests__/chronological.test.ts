@@ -249,10 +249,7 @@ describe("FIDE 2842411 scenario (Mannelli Mazzoli, Tommaso, b.1993)", () => {
   it("blocks direct edges from Mannelli to all players who died before 1993", () => {
     for (const opponent of deadBeforeBorn) {
       const compatible = isChronologicallyCompatible(mannelli, opponent);
-      expect(compatible).toBe(
-        false,
-        `Expected edge to ${opponent.name} (d.${opponent.death_year}) to be blocked`
-      );
+      expect(compatible, `Expected edge to ${opponent.name} (d.${opponent.death_year}) to be blocked`).toBe(false);
     }
   });
 
@@ -269,10 +266,7 @@ describe("FIDE 2842411 scenario (Mannelli Mazzoli, Tommaso, b.1993)", () => {
     ];
     for (const opponent of aliveIn1993) {
       const compatible = isChronologicallyCompatible(mannelli, opponent);
-      expect(compatible).toBe(
-        true,
-        `Expected edge to ${opponent.name} (b.${opponent.birth_year}) to be allowed`
-      );
+      expect(compatible, `Expected edge to ${opponent.name} (b.${opponent.birth_year}) to be allowed`).toBe(true);
     }
   });
 });

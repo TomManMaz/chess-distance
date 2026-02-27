@@ -26,24 +26,21 @@ export default function DistanceResult({ result }: DistanceResultProps) {
   const [modalLoading, setModalLoading] = useState(false);
 
   const first = result.path[0];
-  const last = result.path[result.path.length - 1];
+  const last  = result.path[result.path.length - 1];
 
   const openGames = useCallback(async (idA: number, idB: number) => {
     setModalLoading(true);
     try {
       const res = await fetch(`/api/games?a=${idA}&b=${idB}`);
-      if (res.ok) {
-        const data: GameDetail = await res.json();
-        setModal(data);
-      }
+      if (res.ok) setModal(await res.json());
     } finally {
       setModalLoading(false);
     }
   }, []);
 
   return (
-    <div className="mt-8 text-center">
-      {/* Modal overlay */}
+    <div className="mt-8">
+      {/* ── Modal overlay ── */}
       {(modal || modalLoading) && (
         <div
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
@@ -54,15 +51,11 @@ export default function DistanceResult({ result }: DistanceResultProps) {
             onClick={(e) => e.stopPropagation()}
           >
             {modalLoading ? (
-              <div className="text-center py-8 text-[var(--text-secondary)]">
-                Loading...
-              </div>
+              <div className="text-center py-8 text-[var(--text-secondary)]">Loading…</div>
             ) : modal ? (
               <>
                 <div className="flex justify-between items-start mb-4">
-                  <h3 className="text-lg font-bold text-[var(--board-dark)]">
-                    Games between players
-                  </h3>
+                  <h3 className="text-lg font-bold text-[var(--board-dark)]">Games between players</h3>
                   <button
                     onClick={() => setModal(null)}
                     className="text-gray-400 hover:text-gray-600 text-2xl leading-none cursor-pointer"
@@ -80,51 +73,33 @@ export default function DistanceResult({ result }: DistanceResultProps) {
                       {formatPlayerName(modal.player_b.title, modal.player_b.name)}
                     </div>
                   </div>
-
-                  {/* Total game count */}
                   <div className="text-center">
-                    <span className="text-3xl font-bold text-[var(--accent)]">
-                      {modal.game_count}
-                    </span>
+                    <span className="text-3xl font-bold text-[var(--accent)]">{modal.game_count}</span>
                     <span className="text-[var(--text-secondary)] ml-2">
                       {modal.game_count === 1 ? "game" : "games"} played
                     </span>
                   </div>
-
-                  {/* Time control breakdown */}
                   {(modal.classical_count > 0 || modal.rapid_count > 0 || modal.blitz_count > 0) && (
                     <div className="flex justify-center gap-4 text-sm text-[var(--text-secondary)]">
                       {modal.classical_count > 0 && (
-                        <span>
-                          <span className="font-medium text-[var(--board-dark)]">{modal.classical_count}</span>{" "}classical
-                        </span>
+                        <span><span className="font-medium text-[var(--board-dark)]">{modal.classical_count}</span> classical</span>
                       )}
                       {modal.rapid_count > 0 && (
-                        <span>
-                          <span className="font-medium text-[var(--board-dark)]">{modal.rapid_count}</span>{" "}rapid
-                        </span>
+                        <span><span className="font-medium text-[var(--board-dark)]">{modal.rapid_count}</span> rapid</span>
                       )}
                       {modal.blitz_count > 0 && (
-                        <span>
-                          <span className="font-medium text-[var(--board-dark)]">{modal.blitz_count}</span>{" "}blitz
-                        </span>
+                        <span><span className="font-medium text-[var(--board-dark)]">{modal.blitz_count}</span> blitz</span>
                       )}
                     </div>
                   )}
-
-                  {/* Event name */}
                   {modal.event_sample && (
-                    <div className="text-sm text-[var(--text-secondary)] text-center italic">
-                      e.g. {modal.event_sample}
-                    </div>
+                    <div className="text-sm text-[var(--text-secondary)] text-center italic">e.g. {modal.event_sample}</div>
                   )}
-
-                  {/* Date range */}
                   {(modal.first_game_date || modal.last_game_date) && (
                     <div className="text-sm text-[var(--text-secondary)] text-center">
                       {modal.first_game_date && modal.last_game_date && modal.first_game_date !== modal.last_game_date
-                        ? `From ${modal.first_game_date} to ${modal.last_game_date}`
-                        : `Date: ${modal.first_game_date || modal.last_game_date}`}
+                        ? `${modal.first_game_date} – ${modal.last_game_date}`
+                        : modal.first_game_date || modal.last_game_date}
                     </div>
                   )}
                 </div>
@@ -142,86 +117,74 @@ export default function DistanceResult({ result }: DistanceResultProps) {
         </div>
       )}
 
-      {/* Compact summary line */}
-      <div className="text-[var(--text-secondary)] mb-2">
-        Distance between{" "}
-        <strong>{formatPlayerName(first.player.title, first.player.name, first.player.federation)}</strong>
-        {" "}and{" "}
-        <strong>{formatPlayerName(last.player.title, last.player.name, last.player.federation)}</strong>
-      </div>
-
-      {/* Chain: first player */}
-      <div className="my-4">
-        <PlayerLink player={first.player} className="text-lg font-bold text-[var(--board-dark)]" />
-      </div>
-
-      {/* Toggle details */}
-      <button
-        onClick={() => setShowDetails(!showDetails)}
-        className="text-[var(--accent)] hover:text-[var(--board-dark)] transition-colors mb-2 cursor-pointer"
-      >
-        {showDetails ? (
-          <>
-            <span className="mr-1">&#x2296;</span>
-            <em>hide details</em>
-          </>
-        ) : (
-          <>
-            <span className="mr-1">&#x2295;</span>
-            <em>show details</em>
-          </>
-        )}
-      </button>
-
-      {/* Detailed path */}
-      {showDetails && result.path.length > 1 && (
-        <div className="my-4 inline-block text-left">
-          {result.path.map((node, i) => {
-            if (i >= result.path.length - 1) return null;
-            const next = result.path[i + 1];
-            const gc = node.game_count ?? 0;
-            return (
-              <div key={`${node.player.id}-${next.player.id}`} className="mb-3">
-                {/* Skip name for i=0 — already shown by the standalone "first player" block above */}
-                {i > 0 && (
-                  <div className="mb-1">
-                    <PlayerLink player={node.player} className="text-lg font-bold text-[var(--board-dark)]" />
-                  </div>
-                )}
-                <div className="text-[var(--text-secondary)] text-sm pl-4 border-l-2 border-[var(--board-dark)]/20 ml-2 my-1">
-                  played{" "}
-                  <a
-                    onClick={() => openGames(node.player.id, next.player.id)}
-                    className="text-[var(--accent)] underline cursor-pointer hover:text-[var(--board-dark)] font-medium"
-                  >
-                    {gc} {gc === 1 ? "game" : "games"}
-                  </a>
-                  {" "}against
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      {/* ── Summary sentence (csauthors-style) ── */}
+      {result.distance === 0 ? (
+        <p className="text-lg text-[var(--board-dark)]">
+          <PlayerLink player={first.player} className="font-bold" /> is the same player.
+        </p>
+      ) : (
+        <p className="text-lg text-[var(--board-dark)] leading-snug">
+          <PlayerLink player={first.player} className="font-bold" />
+          {" and "}
+          <PlayerLink player={last.player} className="font-bold" />
+          {" are "}
+          <span className="font-bold text-[var(--accent)]">{result.distance}</span>
+          {result.distance === 1 ? " opponent apart." : " opponents apart."}
+        </p>
       )}
 
-      {/* Last player */}
-      <div className="my-4">
-        <PlayerLink player={last.player} className="text-lg font-bold text-[var(--board-dark)]" />
-      </div>
+      {/* ── Path details (expandable) ── */}
+      {result.distance > 0 && (
+        <>
+          <button
+            onClick={() => setShowDetails(!showDetails)}
+            className="mt-3 text-sm text-[var(--accent)] hover:text-[var(--board-dark)] transition-colors cursor-pointer"
+          >
+            {showDetails ? "▾ hide path" : "▸ show path"}
+          </button>
 
-      {/* Distance badge */}
-      <div className="my-4">
-        <span className="text-2xl font-bold text-[var(--board-dark)]">
-          distance = {result.distance}
-        </span>
-        {result.distance > 0 && (
-          <div className="text-sm text-[var(--text-secondary)] mt-1">
-            {result.distance === 1
-              ? "direct opponents"
-              : `${result.distance} game${result.distance === 1 ? "" : "s"} apart`}
-          </div>
-        )}
-      </div>
+          {showDetails && (
+            <div className="mt-4 inline-block text-left">
+              {/* First player */}
+              <div className="mb-1">
+                <PlayerLink player={first.player} className="text-lg font-bold text-[var(--board-dark)]" />
+              </div>
+
+              {result.path.map((node, i) => {
+                if (i >= result.path.length - 1) return null;
+                const next = result.path[i + 1];
+                const gc   = node.game_count ?? 0;
+                return (
+                  <div key={`${node.player.id}-${next.player.id}`}>
+                    {/* Connector */}
+                    <div className="text-[var(--text-secondary)] text-sm pl-4 border-l-2 border-[var(--board-dark)]/20 ml-2 my-1">
+                      played{" "}
+                      <a
+                        onClick={() => openGames(node.player.id, next.player.id)}
+                        className="text-[var(--accent)] underline cursor-pointer hover:text-[var(--board-dark)] font-medium"
+                      >
+                        {gc} {gc === 1 ? "game" : "games"}
+                      </a>
+                      {" "}against
+                    </div>
+                    {/* Next player (skip the last one — rendered below) */}
+                    {i < result.path.length - 2 && (
+                      <div className="mb-1">
+                        <PlayerLink player={next.player} className="text-lg font-bold text-[var(--board-dark)]" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Last player */}
+              <div className="mt-1">
+                <PlayerLink player={last.player} className="text-lg font-bold text-[var(--board-dark)]" />
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -238,20 +201,13 @@ function PlayerYears({ player }: { player: Player }) {
     ? `${player.birth_year}–${player.death_year}`
     : `b. ${player.birth_year}`;
   return (
-    <span className="ml-1.5 text-sm font-normal text-[var(--text-secondary)]">
-      ({years})
-    </span>
+    <span className="ml-1.5 text-sm font-normal text-[var(--text-secondary)]">({years})</span>
   );
 }
 
 function PlayerLink({ player, className }: { player: Player; className?: string }) {
   const label = formatPlayerName(player.title, player.name, player.federation);
-  const inner = (
-    <>
-      {label}
-      <PlayerYears player={player} />
-    </>
-  );
+  const inner = <>{label}<PlayerYears player={player} /></>;
   if (player.fide_id) {
     return (
       <a
