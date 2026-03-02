@@ -52,7 +52,7 @@ function normalizeName(name) {
 function classifyTimeControl(tc, event) {
   if (event && event !== "?") {
     const ev = event.toLowerCase();
-    if (/\bblitz\b|\bbullet\b|\blightning\b|\bblindblitz\b/.test(ev)) return "blitz";
+    if (/\bblitz\b|\bbullet\b|\blightning\b|\bblindblitz\b|titled.?tue(sday)?/.test(ev)) return "blitz";
     if (/\brapid\b/.test(ev)) return "rapid";
   }
   if (!tc || tc === "?" || tc === "-" || tc === "") return "classical";
