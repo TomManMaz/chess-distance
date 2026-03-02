@@ -7,6 +7,8 @@ interface AdjEntry {
   neighborId: number;
   gameCount: number;
   classicalCount: number;
+  firstGameYear: number | null;
+  lastGameYear: number | null;
 }
 
 interface GraphCache {
@@ -36,6 +38,52 @@ export function isChronologicallyCompatible(
   return true;
 }
 
+// Extract the year from a DATE/timestamp value returned by Neon (string or Date).
+function extractYear(dateVal: unknown): number | null {
+  if (!dateVal) return null;
+  const str = typeof dateVal === "string" ? dateVal : String(dateVal);
+  const y = parseInt(str.substring(0, 4), 10);
+  return isNaN(y) ? null : y;
+}
+
+// Tolerance for chronological overlap checks: two edges whose date windows are
+// up to this many years apart are considered compatible (accounts for partially
+// recorded careers, gaps in tournament data, etc.).
+const CHRONO_TOLERANCE_YEARS = 10;
+
+// Returns true if two consecutive hops through a node are chronologically
+// plausible — i.e., the same physical player could have played both games.
+// If either edge has no date data, the hop is always allowed (preserves
+// connectivity for undated historical PGN records).
+function chronoCompatible(
+  incoming: AdjEntry | null,
+  outgoing: AdjEntry | null
+): boolean {
+  // First hop from source/destination node — no constraint yet.
+  if (incoming === null || outgoing === null) return true;
+
+  const inFirst  = incoming.firstGameYear;
+  const inLast   = incoming.lastGameYear;
+  const outFirst = outgoing.firstGameYear;
+  const outLast  = outgoing.lastGameYear;
+
+  // If either edge has no date data at all, assume compatible.
+  if ((inFirst === null && inLast === null) ||
+      (outFirst === null && outLast === null)) return true;
+
+  // Use the best available bound for each edge.
+  const inEnd    = inLast   ?? inFirst!;
+  const inStart  = inFirst  ?? inLast!;
+  const outEnd   = outLast  ?? outFirst!;
+  const outStart = outFirst ?? outLast!;
+
+  // Incompatible if the eras are separated by more than the tolerance.
+  if (inEnd   + CHRONO_TOLERANCE_YEARS < outStart) return false;
+  if (outEnd  + CHRONO_TOLERANCE_YEARS < inStart)  return false;
+
+  return true;
+}
+
 async function loadGraph(): Promise<GraphCache> {
   const now = Date.now();
   if (cache && now - cache.loadedAt < CACHE_TTL_MS) return cache;
@@ -62,20 +110,37 @@ async function loadGraph(): Promise<GraphCache> {
     });
   }
 
-  // Try to load classical_count; if the column doesn't exist yet (migration
-  // not yet run), fall back to treating every game as classical.
-  let edges: { player_a_id: number; player_b_id: number; game_count: number; classical_count: number }[];
+  // Try to load classical_count + dates; fall back gracefully if columns are missing.
+  let edges: {
+    player_a_id: number;
+    player_b_id: number;
+    game_count: number;
+    classical_count: number;
+    first_game_date: unknown;
+    last_game_date: unknown;
+  }[];
   try {
-    edges = await sql`SELECT player_a_id, player_b_id, game_count, classical_count FROM opponents` as typeof edges;
+    edges = await sql`
+      SELECT player_a_id, player_b_id, game_count, classical_count,
+             first_game_date, last_game_date
+      FROM opponents
+    ` as typeof edges;
   } catch {
-    edges = await sql`SELECT player_a_id, player_b_id, game_count, game_count AS classical_count FROM opponents` as typeof edges;
+    edges = await sql`
+      SELECT player_a_id, player_b_id, game_count, game_count AS classical_count,
+             NULL AS first_game_date, NULL AS last_game_date
+      FROM opponents
+    ` as typeof edges;
   }
+
   const adj = new Map<number, AdjEntry[]>();
   for (const row of edges) {
-    const a = row.player_a_id as number;
-    const b = row.player_b_id as number;
+    const a  = row.player_a_id as number;
+    const b  = row.player_b_id as number;
     const gc = row.game_count as number;
     const cc = (row.classical_count as number) ?? gc;
+    const fy = extractYear(row.first_game_date);
+    const ly = extractYear(row.last_game_date);
 
     const pA = pMap.get(a);
     const pB = pMap.get(b);
@@ -83,8 +148,8 @@ async function loadGraph(): Promise<GraphCache> {
 
     if (!adj.has(a)) adj.set(a, []);
     if (!adj.has(b)) adj.set(b, []);
-    adj.get(a)!.push({ neighborId: b, gameCount: gc, classicalCount: cc });
-    adj.get(b)!.push({ neighborId: a, gameCount: gc, classicalCount: cc });
+    adj.get(a)!.push({ neighborId: b, gameCount: gc, classicalCount: cc, firstGameYear: fy, lastGameYear: ly });
+    adj.get(b)!.push({ neighborId: a, gameCount: gc, classicalCount: cc, firstGameYear: fy, lastGameYear: ly });
   }
 
   cache = { adjacency: adj, playersMap: pMap, loadedAt: now };
@@ -109,6 +174,10 @@ function getGameCount(
   return edgeWeight(entry, filter);
 }
 
+// Each visited node records its parent and the edge that was used to arrive,
+// so the chronological filter can check consecutive hops.
+type ParentEntry = { parent: number; via: AdjEntry | null };
+
 /**
  * Pure bidirectional BFS that operates on an already-built adjacency map.
  * No database calls — suitable for unit testing with mock graph data.
@@ -129,12 +198,12 @@ export function findShortestPathFromGraph(
   if (!adj.has(fromId) || !adj.has(toId)) return null;
 
   // Bidirectional BFS
-  const parentForward = new Map<number, number>(); // child -> parent
-  const parentBackward = new Map<number, number>();
-  parentForward.set(fromId, -1);
-  parentBackward.set(toId, -1);
+  const parentForward  = new Map<number, ParentEntry>();
+  const parentBackward = new Map<number, ParentEntry>();
+  parentForward.set(fromId,  { parent: -1, via: null });
+  parentBackward.set(toId,   { parent: -1, via: null });
 
-  let frontierForward = [fromId];
+  let frontierForward  = [fromId];
   let frontierBackward = [toId];
   let meetingNode = -1;
 
@@ -145,17 +214,30 @@ export function findShortestPathFromGraph(
       for (const node of frontierForward) {
         const neighbors = adj.get(node);
         if (!neighbors) continue;
+        // The edge used to arrive at this node from the forward direction
+        const incomingVia = parentForward.get(node)!.via;
         const sorted = neighbors
           .filter((e) => edgeWeight(e, tcFilter) > 0)
           .sort((a, b) => edgeWeight(b, tcFilter) - edgeWeight(a, tcFilter));
-        for (const { neighborId } of sorted) {
+        for (const entry of sorted) {
+          const { neighborId } = entry;
           if (parentForward.has(neighborId)) continue;
-          parentForward.set(neighborId, node);
+          // Chronological check: can the same player have played both games?
+          if (!chronoCompatible(incomingVia, entry)) continue;
+          parentForward.set(neighborId, { parent: node, via: entry });
           if (parentBackward.has(neighborId)) {
-            meetingNode = neighborId;
-            break outer;
+            // Also validate the junction: the forward edge into this node must
+            // be chronologically compatible with the backward edge into it.
+            const bkwdVia = parentBackward.get(neighborId)!.via;
+            if (chronoCompatible(entry, bkwdVia)) {
+              meetingNode = neighborId;
+              break outer;
+            }
+            // Invalid junction — don't use this node as the meeting point;
+            // continue searching for a valid one.
+          } else {
+            nextFrontier.push(neighborId);
           }
-          nextFrontier.push(neighborId);
         }
       }
       frontierForward = nextFrontier;
@@ -164,17 +246,28 @@ export function findShortestPathFromGraph(
       for (const node of frontierBackward) {
         const neighbors = adj.get(node);
         if (!neighbors) continue;
+        // The edge used to arrive at this node from the backward direction
+        const incomingVia = parentBackward.get(node)!.via;
         const sorted = neighbors
           .filter((e) => edgeWeight(e, tcFilter) > 0)
           .sort((a, b) => edgeWeight(b, tcFilter) - edgeWeight(a, tcFilter));
-        for (const { neighborId } of sorted) {
+        for (const entry of sorted) {
+          const { neighborId } = entry;
           if (parentBackward.has(neighborId)) continue;
-          parentBackward.set(neighborId, node);
+          // Chronological check (symmetric — same function for both directions)
+          if (!chronoCompatible(incomingVia, entry)) continue;
+          parentBackward.set(neighborId, { parent: node, via: entry });
           if (parentForward.has(neighborId)) {
-            meetingNode = neighborId;
-            break outer;
+            // Validate junction with the forward edge already stored at this node
+            const fwdVia = parentForward.get(neighborId)!.via;
+            if (chronoCompatible(fwdVia, entry)) {
+              meetingNode = neighborId;
+              break outer;
+            }
+            // Invalid junction — continue searching
+          } else {
+            nextFrontier.push(neighborId);
           }
-          nextFrontier.push(neighborId);
         }
       }
       frontierBackward = nextFrontier;
@@ -188,14 +281,14 @@ export function findShortestPathFromGraph(
   let cur = meetingNode;
   while (cur !== -1) {
     pathForward.unshift(cur);
-    cur = parentForward.get(cur) ?? -1;
+    cur = parentForward.get(cur)?.parent ?? -1;
   }
 
   const pathBackward: number[] = [];
-  cur = parentBackward.get(meetingNode) ?? -1;
+  cur = parentBackward.get(meetingNode)?.parent ?? -1;
   while (cur !== -1) {
     pathBackward.push(cur);
-    cur = parentBackward.get(cur) ?? -1;
+    cur = parentBackward.get(cur)?.parent ?? -1;
   }
 
   const fullPath = [...pathForward, ...pathBackward];
