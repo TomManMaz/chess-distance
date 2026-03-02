@@ -11,7 +11,7 @@ interface PlayerSearchProps {
   externalPlayer?: SearchResult | null; // set from outside to pre-fill
 }
 
-export default function PlayerSearch({ placeholder = "Type a player name...", onSelect, externalPlayer }: PlayerSearchProps) {
+export default function PlayerSearch({ placeholder = "Name or FIDE ID...", onSelect, externalPlayer }: PlayerSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);

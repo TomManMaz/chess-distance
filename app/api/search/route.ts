@@ -11,6 +11,24 @@ export async function GET(request: NextRequest) {
   const sql = getDb();
   const query = q.trim();
 
+  // If the query is a pure integer, treat it as a FIDE ID lookup.
+  if (/^\d+$/.test(query)) {
+    const fideId = parseInt(query, 10);
+    const rows = await sql`
+      SELECT id, name, title, federation
+      FROM players
+      WHERE fide_id = ${fideId}
+      LIMIT 1
+    `;
+    const results: SearchResult[] = rows.map((row) => ({
+      id: row.id as number,
+      name: row.name as string,
+      title: row.title as string | null,
+      federation: row.federation as string | null,
+    }));
+    return NextResponse.json(results);
+  }
+
   const rows = await sql`
     SELECT id, name, title, federation
     FROM players
