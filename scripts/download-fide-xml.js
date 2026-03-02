@@ -160,7 +160,7 @@ async function upsertPlayers(players, sql) {
        ON CONFLICT (fide_id) DO UPDATE SET
          name       = EXCLUDED.name,
          federation = EXCLUDED.federation,
-         title      = COALESCE(EXCLUDED.title, players.title),
+         title      = EXCLUDED.title,
          birth_year = COALESCE(players.birth_year, EXCLUDED.birth_year)`,
       params
     );
