@@ -39,6 +39,11 @@ node scripts/cleanup-data.js          # Remove dummy players (NN, Comp*, etc.)
 node scripts/download-twic.js         # Download TWIC issues 1090–latest to data/pgn/
                                       # then run batch-pairs.js to load them
 node scripts/download-fide-xml.js     # Download FIDE rating list XML → upsert all ~400K players
+node scripts/download-lumbrasgigabase.js        # Download all OTB PGNs from Lumbra's Gigabase
+                                                # Requires: sudo apt install megatools
+                                                # --list to preview, --since YEAR to filter
+                                                # Downloads to data/lumbrasgigabase/ (13 files, ~1.5 GB compressed)
+                                                # batch-pairs.js automatically picks them up
 
 # One-time migrations (run once against live DB):
 node scripts/migrate-add-time-controls.js        # Add classical_count, rapid_count, blitz_count, event_sample columns
@@ -63,8 +68,12 @@ node scripts/my-morphy-number.js      # Compute Morphy number for Mannelli Mazzo
 # 1. Download new data
 node scripts/download-twic.js
 DATABASE_URL=... node scripts/download-fide-xml.js
+# Optional: Lumbra's Gigabase OTB (comprehensive, replaces PGN Mentor + TWIC for historical data)
+# sudo apt install megatools  (one-time)
+node scripts/download-lumbrasgigabase.js            # all time ranges
+# node scripts/download-lumbrasgigabase.js --since 2020  # only recent years
 
-# 2. Reload all game pairs (reads all PGNs in data/pgnmentor/ and data/pgn/)
+# 2. Reload all game pairs (reads data/pgnmentor/, data/pgn/, data/lumbrasgigabase/)
 DATABASE_URL=... node scripts/batch-pairs.js
 
 # 3. Clean up
