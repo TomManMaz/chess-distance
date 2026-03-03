@@ -20,9 +20,9 @@
  *      This catches false links introduced via deduplication merges.
  */
 
-const { neon } = require("@neondatabase/serverless");
+const postgres = require("postgres");
 
-const sql = neon(process.env.DATABASE_URL);
+const sql = postgres(process.env.DATABASE_URL, { max: 1 });
 const FIX = process.argv.includes("--fix");
 
 const PRE_CUTOFF  = "1910-01-01"; // player's last game before this → historical

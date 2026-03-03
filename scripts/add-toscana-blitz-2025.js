@@ -4,8 +4,8 @@
  * Source: FIDE blitz calculations for Mannelli Mazzoli, Tommaso (2842411)
  *   https://ratings.fide.com/a_indv_calculations.php?id_number=2842411&rating_period=2026-01-01&t=2
  */
-const { neon } = require("@neondatabase/serverless");
-const sql = neon(process.env.DATABASE_URL);
+const postgres = require("postgres");
+const sql = postgres(process.env.DATABASE_URL, { max: 1 });
 
 const EVENT_DATE = "2025-12-13";
 

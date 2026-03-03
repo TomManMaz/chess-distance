@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { neon } = require("@neondatabase/serverless");
+const postgres = require("postgres");
 
 const PGN_DIR = path.join(__dirname, "..", "data", "pgn");
 const DB_URL = process.env.DATABASE_URL;
@@ -31,7 +31,7 @@ function parsePgn(filePath) {
 
 async function main() {
   if (!DB_URL) { console.error("Set DATABASE_URL"); process.exit(1); }
-  const sql = neon(DB_URL);
+  const sql = postgres(DB_URL, { max: 1 });
 
   await sql`TRUNCATE opponents CASCADE`;
   await sql`TRUNCATE players CASCADE`;

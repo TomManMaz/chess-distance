@@ -2,7 +2,7 @@ const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
-const { neon } = require("@neondatabase/serverless");
+const postgres = require("postgres");
 
 const DATA_DIR = path.join(__dirname, "..", "data", "pgnmentor");
 const DB_URL = process.env.DATABASE_URL;
@@ -340,7 +340,7 @@ async function main() {
 
   // Phase 3: DB insert
   if (!DB_URL) { console.error("No DATABASE_URL"); process.exit(1); }
-  const sql = neon(DB_URL);
+  const sql = postgres(DB_URL, { max: 1 });
   await sql`TRUNCATE opponents CASCADE`;
   await sql`TRUNCATE players CASCADE`;
   console.log("=== Phase 3: Loading into database ===");

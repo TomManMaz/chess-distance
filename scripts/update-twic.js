@@ -21,7 +21,7 @@ const http  = require("http");
 const fs    = require("fs");
 const path  = require("path");
 const { execSync } = require("child_process");
-const { neon } = require("@neondatabase/serverless");
+const postgres = require("postgres");
 
 const DATA_DIR = path.join(__dirname, "..", "data", "pgn");
 const UA = "Mozilla/5.0 (compatible; chess-distance-etl)";
@@ -35,7 +35,7 @@ const DB_URL = process.env.DATABASE_URL;
 const DRY_RUN = process.argv.includes("--dry-run");
 
 if (!DB_URL) { console.error("No DATABASE_URL"); process.exit(1); }
-const sql = neon(DB_URL);
+const sql = postgres(DB_URL, { max: 1 });
 
 // ---------------------------------------------------------------------------
 // PGN parsing helpers (same as batch-pairs.js)
@@ -424,7 +424,7 @@ async function main() {
           event_sample    = COALESCE(opponents.event_sample, EXCLUDED.event_sample)`;
 
       batchPromises.push(
-        sql.query(query, params).then(() => { upserted += chunk.length; }).catch(e => {
+        sql.unsafe(query, params).then(() => { upserted += chunk.length; }).catch(e => {
           console.error(`\n  Batch error at ${start}: ${e.message.substring(0, 120)}`);
         })
       );

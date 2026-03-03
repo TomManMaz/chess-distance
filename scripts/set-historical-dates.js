@@ -12,11 +12,11 @@
  *   DATABASE_URL=... node scripts/set-historical-dates.js
  */
 
-const { neon } = require("@neondatabase/serverless");
+const postgres = require("postgres");
 
 const DB_URL = process.env.DATABASE_URL;
 if (!DB_URL) { console.error("No DATABASE_URL"); process.exit(1); }
-const sql = neon(DB_URL);
+const sql = postgres(DB_URL, { max: 1 });
 
 // Historical players: [exact_name_in_db, birth_year, death_year]
 // Names verified against actual DB contents (run _find-missing scripts to check).

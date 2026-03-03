@@ -1,5 +1,5 @@
-const { neon } = require("@neondatabase/serverless");
-const sql = neon(process.env.DATABASE_URL);
+const postgres = require("postgres");
+const sql = postgres(process.env.DATABASE_URL, { max: 1 });
 
 const ME = { name: "Mannelli Mazzoli, Tommaso", fide_id: 2842411, federation: "ITA" };
 

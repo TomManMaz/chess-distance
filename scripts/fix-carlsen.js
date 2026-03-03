@@ -5,8 +5,8 @@
  *     into "Carlsen,M" (FIDE XML, fide_id=1503014, 1286 connections)
  *  3. Rename "Carlsen,M" → "Carlsen, Magnus" for display
  */
-const { neon } = require("@neondatabase/serverless");
-const sql = neon(process.env.DATABASE_URL);
+const postgres = require("postgres");
+const sql = postgres(process.env.DATABASE_URL, { max: 1 });
 
 async function main() {
   const CORRUPT  = 156349; // "Carlsen,6"

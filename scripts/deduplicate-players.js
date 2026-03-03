@@ -10,13 +10,13 @@
  *   DATABASE_URL=... node scripts/deduplicate-players.js --dry-run
  */
 
-const { neon } = require("@neondatabase/serverless");
+const postgres = require("postgres");
 
 const DB_URL = process.env.DATABASE_URL;
 const DRY_RUN = process.argv.includes("--dry-run");
 
 if (!DB_URL) { console.error("No DATABASE_URL"); process.exit(1); }
-const sql = neon(DB_URL);
+const sql = postgres(DB_URL, { max: 1 });
 
 // ---------------------------------------------------------------------------
 // Helper: merge dropId into keepId

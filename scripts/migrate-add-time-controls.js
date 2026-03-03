@@ -16,11 +16,11 @@
  *   node scripts/batch-pairs.js
  */
 
-const { neon } = require("@neondatabase/serverless");
+const postgres = require("postgres");
 
 const DB_URL = process.env.DATABASE_URL;
 if (!DB_URL) { console.error("No DATABASE_URL"); process.exit(1); }
-const sql = neon(DB_URL);
+const sql = postgres(DB_URL, { max: 1 });
 
 async function main() {
   console.log("Adding time control columns to opponents table...");

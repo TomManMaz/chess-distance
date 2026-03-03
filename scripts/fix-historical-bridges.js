@@ -18,11 +18,11 @@
  *   DATABASE_URL=... node scripts/fix-historical-bridges.js --fix    # delete pairs
  */
 
-const { neon } = require("@neondatabase/serverless");
+const postgres = require("postgres");
 
 const DB_URL = process.env.DATABASE_URL;
 if (!DB_URL) { console.error("No DATABASE_URL"); process.exit(1); }
-const sql = neon(DB_URL);
+const sql = postgres(DB_URL, { max: 1 });
 
 const FIX = process.argv.includes("--fix");
 

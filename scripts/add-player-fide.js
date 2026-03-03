@@ -7,7 +7,7 @@
  * page, then pulls opponent lists for Standard, Rapid, and Blitz.
  */
 
-const { neon } = require("@neondatabase/serverless");
+const postgres = require("postgres");
 const https = require("https");
 
 const FIDE_ID = parseInt(process.argv[2]);
@@ -16,7 +16,7 @@ if (!FIDE_ID) {
   process.exit(1);
 }
 
-const sql = neon(process.env.DATABASE_URL);
+const sql = postgres(process.env.DATABASE_URL, { max: 1 });
 
 const BASE_HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",

@@ -48,18 +48,13 @@ export default function Home() {
   async function tryExample() {
     setError(null);
     try {
+      // Use FIDE IDs for reliability: Carlsen=1503014, Tal Mikhail=600813
       const [resA, resB] = await Promise.all([
-        fetch("/api/search?q=Carlsen").then(r => r.json()),
-        fetch("/api/search?q=Tal").then(r => r.json()),
+        fetch("/api/search?q=1503014").then(r => r.json()),
+        fetch("/api/search?q=600813").then(r => r.json()),
       ]);
-      const carlsen: SearchResult | undefined =
-        resA.find((p: SearchResult) => p.name === "Carlsen, Magnus") ||
-        resA.find((p: SearchResult) => /carlsen.*magnus|magnus.*carlsen/i.test(p.name)) ||
-        resA.find((p: SearchResult) => p.name.toLowerCase().includes("carlsen"));
-      const tal: SearchResult | undefined =
-        resB.find((p: SearchResult) => /^tal,\s*mihail$/i.test(p.name)) ||
-        resB.find((p: SearchResult) => /^tal,/i.test(p.name) && /mihail|mikhail/i.test(p.name)) ||
-        resB.find((p: SearchResult) => /^tal,/i.test(p.name));
+      const carlsen: SearchResult | undefined = resA[0];
+      const tal: SearchResult | undefined = resB[0];
       if (!carlsen || !tal) { setError("Example players not found."); return; }
       setPlayerA(carlsen);
       setPlayerB(tal);
@@ -187,16 +182,25 @@ export default function Home() {
             component of the graph.
           </p>
           <p className="italic">
-            Data source: games are sourced from the{" "}
+            Data sources:{" "}
+            <a
+              href="https://lumbrasgigabase.com"
+              className="underline hover:text-[var(--board-dark)]"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Lumbra&apos;s Gigabase
+            </a>{" "}
+            (OTB games) and{" "}
             <a
               href="https://theweekinchess.com/twic"
               className="underline hover:text-[var(--board-dark)]"
               target="_blank"
               rel="noopener noreferrer"
             >
-              TWIC (The Week in Chess)
+              TWIC
             </a>{" "}
-            archive of FIDE-rated games.
+            (recent games).
           </p>
         </div>
       )}
@@ -227,7 +231,7 @@ export default function Home() {
         <span className="text-xs">
           Built with{" "}
           <a href="https://nextjs.org" className="underline hover:text-[var(--board-dark)]" target="_blank" rel="noopener noreferrer">Next.js</a>,{" "}
-          <a href="https://neon.tech" className="underline hover:text-[var(--board-dark)]" target="_blank" rel="noopener noreferrer">Neon PostgreSQL</a>,{" "}
+          <a href="https://www.cockroachlabs.com" className="underline hover:text-[var(--board-dark)]" target="_blank" rel="noopener noreferrer">CockroachDB</a>,{" "}
           <a href="https://tailwindcss.com" className="underline hover:text-[var(--board-dark)]" target="_blank" rel="noopener noreferrer">Tailwind CSS</a>,{" "}
           and <a href="https://vercel.com" className="underline hover:text-[var(--board-dark)]" target="_blank" rel="noopener noreferrer">Vercel</a>.
         </span>

@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
-const { neon } = require("@neondatabase/serverless");
+const postgres = require("postgres");
 
 const DATA_DIR = path.join(__dirname, "..", "data", "pgnmentor");
 const DB_URL = process.env.DATABASE_URL;
@@ -116,7 +116,7 @@ async function upsertPairs(sql, resolvedPairs) {
           event_sample      = COALESCE(opponents.event_sample, EXCLUDED.event_sample)`;
 
       batchPromises.push(
-        sql.query(query, params)
+        sql.unsafe(query, params)
           .then(() => { inserted += chunk.length; })
           .catch(e => { console.error(`\n  Batch error at ${start}: ${e.message.substring(0, 120)}`); })
       );
@@ -148,8 +148,8 @@ async function insertNewPlayers(sql, newPlayers, fideToId, nameToId) {
         name = CASE WHEN players.name = EXCLUDED.name THEN players.name ELSE EXCLUDED.name END
       RETURNING id, name, fide_id`;
     try {
-      const rows = await sql.query(query, params);
-      for (const r of rows.rows || rows) {
+      const rows = await sql.unsafe(query, params);
+      for (const r of rows) {
         if (r.fide_id) fideToId.set(r.fide_id, r.id);
         nameToId.set(r.name.toLowerCase().trim(), r.id);
       }
@@ -195,7 +195,7 @@ function collectAllFiles() {
 
 async function main() {
   if (!DB_URL) { console.error("No DATABASE_URL"); process.exit(1); }
-  const sql = neon(DB_URL);
+  const sql = postgres(DB_URL, { max: 1 });
 
   const allFiles = collectAllFiles();
   const sourceGroups = {};
@@ -328,6 +328,7 @@ async function main() {
   console.log(`  Total games parsed:     ${totalGames.toLocaleString()}`);
   console.log(`  Total pairs upserted:   ${totalPairsInserted.toLocaleString()}`);
   console.log(`  Opponent pairs in DB:   ${parseInt(finalCount[0].count).toLocaleString()}`);
+  await sql.end();
 }
 
 main().catch(console.error);

@@ -15,7 +15,7 @@ const fs    = require("fs");
 const path  = require("path");
 const readline = require("readline");
 const { execSync } = require("child_process");
-const { neon } = require("@neondatabase/serverless");
+const postgres = require("postgres");
 
 const DB_URL      = process.env.DATABASE_URL;
 const DATA_DIR    = path.join(__dirname, "..", "data");
@@ -154,7 +154,7 @@ async function upsertPlayers(players, sql) {
 
     if (!clauses.length) continue;
 
-    await sql.query(
+    await sql.unsafe(
       `INSERT INTO players (fide_id, name, federation, title, birth_year)
        VALUES ${clauses.join(", ")}
        ON CONFLICT (fide_id) DO UPDATE SET
@@ -177,7 +177,7 @@ async function upsertPlayers(players, sql) {
 // ---------------------------------------------------------------------------
 async function main() {
   if (!DB_URL) { console.error("No DATABASE_URL"); process.exit(1); }
-  const sql = neon(DB_URL);
+  const sql = postgres(DB_URL, { max: 1 });
 
   fs.mkdirSync(DATA_DIR, { recursive: true });
 

@@ -1,5 +1,5 @@
-const { neon } = require("@neondatabase/serverless");
-const sql = neon(process.env.DATABASE_URL);
+const postgres = require("postgres");
+const sql = postgres(process.env.DATABASE_URL, { max: 1 });
 
 async function main() {
   // Set classical_count = game_count for Tommaso's connections (id=239909)

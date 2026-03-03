@@ -1,5 +1,5 @@
-const { neon } = require("@neondatabase/serverless");
-const sql = neon(process.env.DATABASE_URL);
+const postgres = require("postgres");
+const sql = postgres(process.env.DATABASE_URL, { max: 1 });
 async function main() {
   // Check Bartolini vs Bettollini
   const b = await sql`SELECT id, name, fide_id, federation FROM players WHERE id = 182903`;

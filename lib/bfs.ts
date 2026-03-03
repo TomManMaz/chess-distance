@@ -38,7 +38,7 @@ export function isChronologicallyCompatible(
   return true;
 }
 
-// Extract the year from a DATE/timestamp value returned by Neon (string or Date).
+// Extract the year from a DATE/timestamp value returned by the DB (string or Date).
 function extractYear(dateVal: unknown): number | null {
   if (!dateVal) return null;
   const str = typeof dateVal === "string" ? dateVal : String(dateVal);
