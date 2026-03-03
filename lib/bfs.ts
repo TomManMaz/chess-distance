@@ -20,6 +20,10 @@ interface GraphCache {
 let cache: GraphCache | null = null;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+export function invalidateCache(): void {
+  cache = null;
+}
+
 /**
  * Returns true when the two players could plausibly have played each other,
  * i.e. their lifespans are not provably non-overlapping.
