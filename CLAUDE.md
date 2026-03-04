@@ -235,6 +235,10 @@ DATABASE_URL=... python -m etl.add_slugs
 ```
 Also run after `deduplicate_players.py` since dedup renames rows.
 
+### Performance notes
+- `getTopNeighbors` uses UNION ALL (not CASE in JOIN) so each branch hits `idx_opponents_a` / `idx_opponents_b` indexes — avoids full table scan on Vercel
+- `app/[player]/page.tsx` uses `React.cache()` to deduplicate `getPlayerBySlug` calls between `generateMetadata` and the page component (1 DB round-trip instead of 4)
+
 ### Route conflict analysis
 - `/api/**` and `/player/**` are explicit segments → win over `[player]`
 - `[player]` catches 1-segment paths not matched above
