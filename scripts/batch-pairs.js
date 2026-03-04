@@ -144,14 +144,15 @@ async function insertNewPlayers(sql, newPlayers, fideToId, nameToId) {
     const query = `
       INSERT INTO players (name, fide_id, title)
       VALUES ${valueClauses.join(", ")}
-      ON CONFLICT (fide_id) WHERE fide_id IS NOT NULL DO UPDATE SET
-        name = CASE WHEN players.name = EXCLUDED.name THEN players.name ELSE EXCLUDED.name END
+      ON CONFLICT (fide_id) DO UPDATE SET
+        name = EXCLUDED.name,
+        title = COALESCE(EXCLUDED.title, players.title)
       RETURNING id, name, fide_id`;
     try {
       const rows = await sql.unsafe(query, params);
       for (const r of rows) {
-        if (r.fide_id) fideToId.set(r.fide_id, r.id);
-        nameToId.set(r.name.toLowerCase().trim(), r.id);
+        if (r.fide_id) fideToId.set(Number(r.fide_id), Number(r.id));
+        nameToId.set(r.name.toLowerCase().trim(), Number(r.id));
       }
     } catch (e) {
       console.error(`  Player insert error: ${e.message.substring(0, 120)}`);
@@ -212,8 +213,9 @@ async function main() {
   const fideToId = new Map();
   const nameToId = new Map();
   for (const p of allPlayers) {
-    if (p.fide_id) fideToId.set(p.fide_id, p.id);
-    nameToId.set(p.name.toLowerCase().trim(), p.id);
+    // CockroachDB returns INT8 as BigInt via postgres.js — normalize to Number
+    if (p.fide_id) fideToId.set(Number(p.fide_id), Number(p.id));
+    nameToId.set(p.name.toLowerCase().trim(), Number(p.id));
   }
   console.log(`  Loaded ${allPlayers.length.toLocaleString()} players\n`);
 
