@@ -56,7 +56,9 @@ def get_db_url() -> str:
     Fall back to the OS trust store when no explicit sslrootcert is set.
     """
     url = _load_database_url()
-    if "sslrootcert" not in url:
+    # Only add sslrootcert=system for CockroachDB-style URLs.
+    # Neon (and other providers) use sslmode=require which rejects sslrootcert=system.
+    if "sslrootcert" not in url and "sslmode=require" not in url:
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}sslrootcert=system"
     return url
