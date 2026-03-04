@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -6,13 +7,17 @@ import { federationFlag } from "@/lib/federation-flag";
 import { toDisplayName } from "@/lib/names";
 import { nameToSlug } from "@/lib/slug";
 
+// cache() deduplicates identical calls within a single request,
+// so generateMetadata and the page component share one DB round-trip.
+const getCachedPlayer = cache(getPlayerBySlug);
+
 interface Props {
   params: Promise<{ player: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { player: slug } = await params;
-  const p = await getPlayerBySlug(slug);
+  const p = await getCachedPlayer(slug);
   if (!p) return { title: "Player not found" };
   const display = toDisplayName(p.name);
   return {
@@ -24,12 +29,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PlayerPage({ params }: Props) {
   const { player: slug } = await params;
 
-  const [player, neighbors] = await Promise.all([
-    getPlayerBySlug(slug),
-    getPlayerBySlug(slug).then(p => p ? getTopNeighbors(Number(p.id)) : []),
-  ]);
-
+  const player = await getCachedPlayer(slug);
   if (!player) return notFound();
+
+  const neighbors = await getTopNeighbors(Number(player.id));
 
   const display = toDisplayName(player.name);
   const flag = player.federation ? federationFlag(player.federation) : null;

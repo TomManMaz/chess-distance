@@ -36,17 +36,21 @@ export async function getPlayerData(id: number): Promise<PlayerData | null> {
 
 export async function getTopNeighbors(id: number, limit = 5): Promise<NeighborData[]> {
   const sql = getDb();
-  // Find the top opponents by game_count (opponents table stores a < b)
+  // Two-branch UNION ALL so each branch uses its dedicated index:
+  //   idx_opponents_a (player_a_id) and idx_opponents_b (player_b_id)
+  // A CASE expression in the JOIN would prevent index usage (full scan).
   const rows = await sql<NeighborData[]>
     `
     SELECT p.id, p.name, p.title, p.federation, o.game_count, p.slug
     FROM opponents o
-    JOIN players p ON p.id = CASE
-      WHEN o.player_a_id = ${id} THEN o.player_b_id
-      ELSE o.player_a_id
-    END
-    WHERE o.player_a_id = ${id} OR o.player_b_id = ${id}
-    ORDER BY o.game_count DESC
+    JOIN players p ON p.id = o.player_b_id
+    WHERE o.player_a_id = ${id}
+    UNION ALL
+    SELECT p.id, p.name, p.title, p.federation, o.game_count, p.slug
+    FROM opponents o
+    JOIN players p ON p.id = o.player_a_id
+    WHERE o.player_b_id = ${id}
+    ORDER BY game_count DESC
     LIMIT ${limit}
   `;
   return rows;
