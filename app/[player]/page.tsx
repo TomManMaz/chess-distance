@@ -77,12 +77,6 @@ export default async function PlayerPage({ params }: Props) {
               </dd>
             </div>
           )}
-          {player.birth_year && (
-            <div className="flex gap-2">
-              <dt className="text-[var(--text-secondary)] w-36 shrink-0">Birth year</dt>
-              <dd className="font-medium text-[var(--board-dark)]">{player.birth_year}</dd>
-            </div>
-          )}
           {player.fide_id && (
             <div className="flex gap-2">
               <dt className="text-[var(--text-secondary)] w-36 shrink-0">FIDE ID</dt>
