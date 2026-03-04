@@ -244,3 +244,124 @@ Also run after `deduplicate_players.py` since dedup renames rows.
 - `[player]` catches 1-segment paths not matched above
 - `[player]/[playerB]` catches 2-segment paths
 
+## Python Porting Strategy (2026-03-04 — Phase 1 Complete)
+
+**Goal:** Make the Python ETL pipeline self-contained and enable future FastAPI backend.
+
+### Phase 1 — Completed ✅
+
+Four high-value modules ported. All syntax-validated, import-tested.
+
+| Module | File | LOC | Status | Notes |
+|--------|------|-----|--------|-------|
+| **1. FIDE Scraper** | `py_lib/fide_scraper.py` | ~280 | ✅ | Async HTTP, parses FIDE rating pages, upserts players/opponents. Requires `aiohttp`, integrates with `psycopg` |
+| **2. Slug Utilities** | `py_lib/slug.py` | ~70 | ✅ | Port of `lib/slug.ts`. `name_to_slug()`, `to_display_name()`, `slug_to_name_parts()`. Pure functions, no deps |
+| **3. Federation Flags** | `py_lib/federation_flag.py` | ~130 | ✅ | Port of `lib/federation-flag.ts`. FIDE code → flag emoji ("USA" → "🇺🇸") |
+| **4. Type System** | `py_lib/types.py` | ~180 | ✅ | Expanded from ~25 LOC. Dataclasses (internal) + optional Pydantic models (API validation) |
+| **5. Enhanced DB Module** | `etl/db.py` | ~137 | ✅ | Expanded from ~35 LOC. Context managers, quick helpers, uniform error handling |
+
+### Phase 2 — Remaining (Optional, ~3-4 weeks)
+
+#### Medium effort (1-2 weeks):
+- **Player Queries** (`py_lib/player.py`) — ~60 LOC
+  - Port `getPlayerData(id)`, `getPlayerBySlug(slug)`, `getTopNeighbors()`
+  - Direct SQL translation, same BigInt-safe patterns as ETL
+  - Enables Python CLI tools and batch operations
+
+- **FastAPI Backend** (`api/` directory) — ~400 LOC
+  - Wrap 4 API routes (`/distance`, `/search`, `/stats`, `/games`)
+  - Reuse BFS from `py_lib/bfs.py` (already ported)
+  - PostgreSQL trigram search, time-control filtering
+  - Async for concurrency; Docker-deployable alternative to Vercel
+
+#### Lower priority (1 week):
+- **Python Unit Tests**
+  - `tests/test_slug.py` — `name_to_slug()` edge cases (accents, single-name figures, etc.)
+  - `tests/test_federation_flag.py` — FIDE code validation
+  - `tests/test_player_queries.py` — DB queries (with fixtures)
+
+#### Not worth porting:
+- React components (`components/`), Next.js pages (`app/`) — Keep TypeScript
+- Full BFS + caching (`lib/bfs.ts`) — Already ported core algorithm; database caching is I/O-bound, consider as external service call
+- TypeScript build/test infrastructure (Vitest, TypeScript compiler) — Specific to Next.js ecosystem
+
+### Environment.yml Update Needed
+
+To use FIDE scraper, add `aiohttp` to the Conda environment:
+
+```yaml
+# In environment.yml, add to dependencies:
+- aiohttp >=3.9
+```
+
+Then recreate the environment:
+```bash
+conda env update -f environment.yml --prune
+conda activate chess-distance-py
+```
+
+### Migration Path (if pursuing Phase 2)
+
+**Option A: Incremental**
+1. Add `py_lib/player.py` queries
+2. Write Python CLI utilities (e.g., `scripts/search-players.py`)
+3. Run tests against live DB (use read-only queries)
+
+**Option B: Parallel API Backend**
+1. Build FastAPI app in `api/` directory
+2. Deploy alongside Vercel frontend (separate domain or `/api/v2/` prefix)
+3. A/B test performance; migrate routes incrementally
+4. Eventually sunset Next.js API routes once FastAPI is proven stable
+
+**Option C: Full Replacement (Not recommended yet)**
+- Keep Next.js frontend indefinitely (React is superior for UI)
+- Move all backend to FastAPI (requires more DevOps effort)
+- Benefits: Python-only ops, easier ML integration, better async scaling
+- Costs: Lose Vercel convenience, manage Docker/Kubernetes, separate CI/CD for backend
+
+### Known Gaps / Gotchas
+
+1. **FIDE Scraper async model** — Currently uses `aiohttp` directly. To integrate with ETL (which uses `psycopg` sync), wrap it in a simple CLI:
+   ```bash
+   python -c "import asyncio; from py_lib.fide_scraper import scrape_fide_player; from etl.db import get_conn; 
+   conn = get_conn(); asyncio.run(scrape_fide_player(1234, conn))"
+   ```
+   Better: Create `scripts/scrape-fide.py` wrapper.
+
+2. **Pydantic optional** — `py_lib/types.py` gracefully degrades if `pydantic` is not installed (falls back to dataclasses). For API validation, add to `environment.yml`:
+   ```yaml
+   - pydantic >=2.0
+   ```
+
+3. **Type annotations** — Python's `from __future__ import annotations` ensures all hints are stringified (deferred evaluation), so no forward-reference issues. Matches TypeScript's experience.
+
+4. **BigInt precision** — Python `int` is arbitrary-precision natively, so no conversion needed (unlike TypeScript's `Number` vs `BigInt` distinction). Safe to use DB IDs as dict keys directly.
+
+### Testing Strategy
+
+All new modules should have unit tests:
+- **No DB required** — use fixtures for mock players/edges
+- **Parametrized tests** — test slug generation with international names, empty values, etc.
+- **Run:** `pytest -q tests/` from repo root
+
+Example (tests/test_slug.py):
+```python
+import pytest
+from py_lib.slug import name_to_slug
+
+@pytest.mark.parametrize("name,expected", [
+    ("Carlsen, Magnus", "carlsen-magnus"),
+    ("Erdős, Pál", "erdos-pal"),
+    ("Morphy", "morphy"),
+    ("Nimzowitsch, Aaron ", "nimzowitsch-aaron"),  # trailing space
+])
+def test_name_to_slug(name, expected):
+    assert name_to_slug(name) == expected
+```
+
+Then run:
+```bash
+pytest tests/test_slug.py -v
+```
+
+
