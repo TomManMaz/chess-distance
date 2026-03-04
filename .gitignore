@@ -43,3 +43,9 @@ next-env.d.ts
 /data/
 *.pgn
 *.zip
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
