@@ -38,9 +38,10 @@ export async function getPlayerData(id: number): Promise<PlayerData | null> {
 
 export async function getTopNeighbors(id: bigint | number, limit = 5): Promise<NeighborData[]> {
   const sql = getDb();
-  // Coerce to bigint so postgres.js resolves the correct tagged-template overload.
-  // BigInt(x) is a no-op when x is already a bigint; safe for in-range numbers too.
-  const pgId = BigInt(id);
+  // postgres.js types don't include bigint in SerializableParameter, but the driver
+  // handles it correctly at runtime (sends int8 OID on the wire). Cast via unknown to
+  // satisfy TypeScript without converting to Number (which would lose precision).
+  const pgId = BigInt(id) as unknown as number;
   // Two-branch UNION ALL so each branch uses its dedicated index:
   //   idx_opponents_a (player_a_id) and idx_opponents_b (player_b_id)
   // TypeScript cast: postgres.js checks typeof at runtime (sees bigint → int8),
