@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findShortestPath } from "@/lib/bfs";
+import { getDb } from "@/lib/db";
+import { scrapeFidePlayer } from "@/lib/fide-scraper";
+import { findShortestPath, invalidateCache } from "@/lib/bfs";
 import type { TimeControlFilter } from "@/lib/bfs";
 
 export async function GET(request: NextRequest) {
@@ -26,6 +28,52 @@ export async function GET(request: NextRequest) {
 
   const tcFilter: TimeControlFilter =
     tcParam === "classical" ? "classical" : "all";
+
+  // On-demand FIDE scraping: if either player has a FIDE ID but hasn't been
+  // scraped yet, fetch their opponents now before running BFS.
+  // Wrapped in try/catch so a missing fide_scraped_at column doesn't break the route.
+  const sql = getDb();
+  let scraped = false;
+  try {
+    const [fromRows, toRows] = await Promise.all([
+      sql<{ fide_id: number | null; fide_scraped_at: Date | null }[]>`
+        SELECT fide_id, fide_scraped_at FROM players WHERE id = ${fromId}
+      `,
+      sql<{ fide_id: number | null; fide_scraped_at: Date | null }[]>`
+        SELECT fide_id, fide_scraped_at FROM players WHERE id = ${toId}
+      `,
+    ]);
+
+    for (const rows of [fromRows, toRows]) {
+      const p = rows[0];
+      if (p?.fide_id && !p.fide_scraped_at) {
+        try {
+          await Promise.race([
+            scrapeFidePlayer(Number(p.fide_id), sql).then(() => {
+              scraped = true;
+            }),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("scrape timeout")), 50_000)
+            ),
+          ]);
+        } catch (err) {
+          const fideId = p.fide_id;
+          console.warn(`[distance] Scrape for FIDE ${fideId} failed/timed out:`, err);
+          try {
+            await sql`UPDATE players SET fide_scraped_at = NOW() WHERE fide_id = ${fideId}`;
+            scraped = true;
+          } catch {
+            // DB update failed — allow retry next request
+          }
+        }
+      }
+    }
+  } catch {
+    // fide_scraped_at column may not exist yet — skip scraping
+    // Run: DATABASE_URL=... python -m etl.migrate_fide_scraped_at
+  }
+
+  if (scraped) invalidateCache();
 
   const result = await findShortestPath(fromId, toId, tcFilter);
 

@@ -58,15 +58,20 @@ export async function getTopNeighbors(id: number, limit = 5): Promise<NeighborDa
 
 export async function getPlayerBySlug(slug: string): Promise<PlayerData | null> {
   const sql = getDb();
-  const rows = await sql<PlayerData[]>
-    `
-    SELECT p.id,p.name,p.fide_id,p.federation,p.title,p.birth_year,p.death_year,
-           (SELECT SUM(game_count) FROM opponents
-            WHERE player_a_id = p.id OR player_b_id = p.id)::int AS total_games
-    FROM players p
-    WHERE p.slug = ${slug}
-    LIMIT 1
-  `;
-  if (rows.length === 0) return null;
-  return rows[0];
+  try {
+    const rows = await sql<PlayerData[]>
+      `
+      SELECT p.id,p.name,p.fide_id,p.federation,p.title,p.birth_year,p.death_year,
+             (SELECT SUM(game_count) FROM opponents
+              WHERE player_a_id = p.id OR player_b_id = p.id)::int AS total_games
+      FROM players p
+      WHERE p.slug = ${slug}
+      LIMIT 1
+    `;
+    if (rows.length === 0) return null;
+    return rows[0];
+  } catch {
+    // slug column may not exist yet — run: DATABASE_URL=... python -m etl.add_slugs
+    return null;
+  }
 }

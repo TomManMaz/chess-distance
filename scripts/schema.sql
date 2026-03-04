@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS players (
     title       TEXT,                   -- FIDE title (GM, IM, FM, …)
     birth_year  INTEGER,                -- from FIDE XML <birthday> or set-historical-dates.js
     death_year  INTEGER,                -- for deceased historical players only
-    slug        TEXT UNIQUE             -- URL slug e.g. "carlsen-magnus" (populated by etl/add_slugs.py)
+    slug        TEXT UNIQUE,            -- URL slug e.g. "carlsen-magnus" (populated by etl/add_slugs.py)
+    fide_scraped_at TIMESTAMPTZ         -- set when FIDE calc page has been scraped; NULL = not yet scraped
 );
 
 -- =============================================================================
