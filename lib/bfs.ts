@@ -109,16 +109,21 @@ async function loadGraph(): Promise<GraphCache> {
       FROM players
     ` as typeof players;
   }
+  // postgres.js returns INT8 columns as strings from CockroachDB.
+  // Use Number() to convert so pMap/adj keys match parseInt(urlParam) in route.ts.
+  // CockroachDB rowids are sequential and differ by >> 256, so float64 rounding
+  // never produces collisions in practice.
   const pMap = new Map<number, Player>();
   for (const row of players) {
-    pMap.set(row.id as number, {
-      id: row.id as number,
+    const id = Number(row.id);
+    pMap.set(id, {
+      id,
       name: row.name as string,
-      fide_id: row.fide_id as number | null,
+      fide_id: row.fide_id != null ? Number(row.fide_id) : null,
       federation: row.federation as string | null,
       title: row.title as string | null,
-      birth_year: row.birth_year as number | null,
-      death_year: row.death_year as number | null,
+      birth_year: row.birth_year != null ? Number(row.birth_year) : null,
+      death_year: row.death_year != null ? Number(row.death_year) : null,
     });
   }
 
@@ -147,10 +152,10 @@ async function loadGraph(): Promise<GraphCache> {
 
   const adj = new Map<number, AdjEntry[]>();
   for (const row of edges) {
-    const a  = row.player_a_id as number;
-    const b  = row.player_b_id as number;
-    const gc = row.game_count as number;
-    const cc = (row.classical_count as number) ?? gc;
+    const a  = Number(row.player_a_id);
+    const b  = Number(row.player_b_id);
+    const gc = Number(row.game_count);
+    const cc = Number(row.classical_count) ?? gc;
     const fy = extractYear(row.first_game_date);
     const ly = extractYear(row.last_game_date);
 
