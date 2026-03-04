@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import type { DistanceResult as DistanceResultType, Player } from "@/lib/types";
 import { federationFlag } from "@/lib/federation-flag";
 import { toDisplayName } from "@/lib/names";
+import { nameToSlug } from "@/lib/slug";
 
 interface DistanceResultProps {
   result: DistanceResultType;
@@ -216,17 +218,13 @@ function PlayerYears({ player }: { player: Player }) {
 function PlayerLink({ player, className }: { player: Player; className?: string }) {
   const label = formatPlayerName(player.title, player.name, player.federation);
   const inner = <>{label}<PlayerYears player={player} /></>;
-  if (player.fide_id) {
-    return (
-      <a
-        href={`https://ratings.fide.com/profile/${player.fide_id}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={`hover:underline hover:text-[var(--accent)] transition-colors ${className ?? ""}`}
-      >
-        {inner}
-      </a>
-    );
-  }
-  return <span className={className}>{inner}</span>;
+  const slug = nameToSlug(player.name);
+  return (
+    <Link
+      href={`/${slug}`}
+      className={`hover:underline hover:text-[var(--accent)] transition-colors ${className ?? ""}`}
+    >
+      {inner}
+    </Link>
+  );
 }

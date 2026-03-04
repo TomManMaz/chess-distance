@@ -5,6 +5,7 @@ import PlayerSearch from "@/components/PlayerSearch";
 import DistanceResultComponent from "@/components/DistanceResult";
 import Stats from "@/components/Stats";
 import type { SearchResult, DistanceResult } from "@/lib/types";
+import { nameToSlug } from "@/lib/slug";
 
 export default function Home() {
   const [playerA, setPlayerA] = useState<SearchResult | null>(null);
@@ -32,7 +33,12 @@ export default function Home() {
         setTcFiltered(!!data.tcFiltered);
         return;
       }
-      setResult(await res.json());
+      const data = await res.json();
+      setResult(data);
+      // Update URL to shareable pair path (no navigation)
+      const slugA = nameToSlug(a.name);
+      const slugB = nameToSlug(b.name);
+      window.history.replaceState(null, "", `/${slugA}/${slugB}`);
     } catch {
       setError("An error occurred. Please try again.");
     } finally {

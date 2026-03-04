@@ -205,4 +205,35 @@ I added a Conda environment manifest `environment.yml` to make the Python protot
   ./scripts/run-python-tests.sh --skip-create
   ```
 
+## Per-player and pair distance pages (2026-03-04)
+
+CSAuthors-style shareable URLs implemented:
+
+- **`/magnus-carlsen`** → player profile page (`app/[player]/page.tsx`)
+- **`/magnus-carlsen/mihail-tal`** → pair distance page (`app/[player]/[playerB]/page.tsx`)
+- Slug format: `"Carlsen, Magnus"` → `"magnus-carlsen"` (first-last, accents stripped)
+
+### New / modified files
+| File | Description |
+|------|-------------|
+| `lib/slug.ts` | `nameToSlug(name)` pure function (mirrors `etl/add_slugs.py`) |
+| `lib/player.ts` | Added `getPlayerBySlug(slug)` + `title` field to `PlayerData` |
+| `app/[player]/page.tsx` | Server-component player profile |
+| `app/[player]/[playerB]/page.tsx` | Server-component pair distance page |
+| `app/page.tsx` | `history.replaceState` to `/{slugA}/{slugB}` after calculation |
+| `components/DistanceResult.tsx` | Player names link to `/{slug}` pages |
+| `scripts/schema.sql` | `slug TEXT UNIQUE` column + `players_slug_idx` |
+| `etl/add_slugs.py` | One-time script to populate `slug` for all existing players |
+| `__tests__/slug.test.ts` | Unit tests for `nameToSlug` |
+
+### ETL step needed (run after `batch_pairs.py`)
+```bash
+DATABASE_URL=... python etl/add_slugs.py
+```
+Also run after `deduplicate_players.py` since dedup renames rows.
+
+### Route conflict analysis
+- `/api/**` and `/player/**` are explicit segments → win over `[player]`
+- `[player]` catches 1-segment paths not matched above
+- `[player]/[playerB]` catches 2-segment paths
 

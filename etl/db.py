@@ -30,4 +30,9 @@ def get_conn(autocommit: bool = False) -> psycopg.Connection:
                     break
     if not url:
         raise SystemExit("DATABASE_URL is not set. Pass it as an env var or put it in .env.local")
+    # On Windows, psycopg cannot find the CockroachDB root CA automatically.
+    # Fall back to the OS trust store when no explicit sslrootcert is set.
+    if "sslrootcert" not in url:
+        sep = "&" if "?" in url else "?"
+        url = f"{url}{sep}sslrootcert=system"
     return psycopg.connect(url, autocommit=autocommit)

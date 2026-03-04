@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS players (
     federation  TEXT,                   -- 3-letter FIDE federation code (e.g. "ITA")
     title       TEXT,                   -- FIDE title (GM, IM, FM, …)
     birth_year  INTEGER,                -- from FIDE XML <birthday> or set-historical-dates.js
-    death_year  INTEGER                 -- for deceased historical players only
+    death_year  INTEGER,                -- for deceased historical players only
+    slug        TEXT UNIQUE             -- URL slug e.g. "carlsen-magnus" (populated by etl/add_slugs.py)
 );
 
 -- =============================================================================
@@ -89,3 +90,6 @@ CREATE INDEX IF NOT EXISTS idx_players_name_trgm ON players USING gin (name gin_
 
 -- Fast FIDE ID lookup (used during ETL and by add-player-fide.js)
 CREATE INDEX IF NOT EXISTS idx_players_fide_id ON players(fide_id) WHERE fide_id IS NOT NULL;
+
+-- Slug lookup for per-player and pair-distance pages
+CREATE UNIQUE INDEX IF NOT EXISTS players_slug_idx ON players(slug) WHERE slug IS NOT NULL;
