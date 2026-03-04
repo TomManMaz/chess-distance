@@ -46,17 +46,19 @@ npm test             # Run TypeScript unit tests (Vitest, no DB required)
 pytest -q            # Run Python unit tests (no DB required; activate conda env first)
 
 # Full ETL pipeline — Python (run in order for a fresh load):
-python etl/download_twic.py                        # Download TWIC issues to data/pgn/
-DATABASE_URL=... python etl/download_fide_xml.py   # Download FIDE XML → upsert ~541K players
+# IMPORTANT: always run as "python -m etl.<name>" from repo root (cross-platform)
+python -m etl.download_twic                        # Download TWIC issues to data/pgn/
+DATABASE_URL=... python -m etl.download_fide_xml   # Download FIDE XML → upsert ~541K players
 node scripts/download-lumbrasgigabase.js           # Download Lumbras Gigabase OTB PGNs (no Python version yet)
-DATABASE_URL=... python etl/batch_pairs.py         # Parse all PGNs, upsert opponent pairs (TRUNCATES first)
-DATABASE_URL=... python etl/cleanup_data.py        # Remove dummy players (NN, Comp*, etc.)
-DATABASE_URL=... python etl/set_historical_dates.py  # Populate birth/death years for ~50 key historical players
-DATABASE_URL=... python etl/deduplicate_players.py   # Merge duplicate player rows (run with --dry-run first)
-DATABASE_URL=... python etl/validate_data.py --fix   # Remove provably false cross-era links
+DATABASE_URL=... python -m etl.batch_pairs         # Parse all PGNs, upsert opponent pairs (TRUNCATES first)
+DATABASE_URL=... python -m etl.cleanup_data        # Remove dummy players (NN, Comp*, etc.)
+DATABASE_URL=... python -m etl.set_historical_dates  # Populate birth/death years for ~50 key historical players
+DATABASE_URL=... python -m etl.deduplicate_players   # Merge duplicate player rows (run with --dry-run first)
+DATABASE_URL=... python -m etl.validate_data --fix   # Remove provably false cross-era links
+DATABASE_URL=... python -m etl.add_slugs           # Populate slug column for player pages
 
 # Incremental weekly update (also runs via GitHub Actions cron):
-DATABASE_URL=... python etl/update_twic.py         # Download + upsert new TWIC issues only (no TRUNCATE)
+DATABASE_URL=... python -m etl.update_twic         # Download + upsert new TWIC issues only (no TRUNCATE)
 
 # Utilities (JS, no Python equivalent yet):
 node scripts/find-players.js          # Search PGN files for a player name
@@ -69,20 +71,21 @@ node scripts/add-player-fide.js <fide_id>  # Scrape FIDE calc page and add playe
 conda activate chess-distance-py
 
 # 1. Download data
-python etl/download_twic.py
-DATABASE_URL=... python etl/download_fide_xml.py
+python -m etl.download_twic
+DATABASE_URL=... python -m etl.download_fide_xml
 node scripts/download-lumbrasgigabase.js   # (no Python version yet)
 
 # 2. Reload all game pairs (reads data/pgnmentor/, data/pgn/, data/lumbrasgigabase/)
-DATABASE_URL=... python etl/batch_pairs.py
+DATABASE_URL=... python -m etl.batch_pairs
 
 # 3. Post-processing
-DATABASE_URL=... python etl/cleanup_data.py
-DATABASE_URL=... python etl/set_historical_dates.py
-DATABASE_URL=... python etl/deduplicate_players.py
+DATABASE_URL=... python -m etl.cleanup_data
+DATABASE_URL=... python -m etl.set_historical_dates
+DATABASE_URL=... python -m etl.deduplicate_players
 # IMPORTANT: always run validate_data after dedup — dedup can re-introduce false
 # cross-era links by merging a historical duplicate into a modern canonical player.
-DATABASE_URL=... python etl/validate_data.py --fix
+DATABASE_URL=... python -m etl.validate_data --fix
+DATABASE_URL=... python -m etl.add_slugs
 ```
 
 ## File Structure
@@ -228,7 +231,7 @@ CSAuthors-style shareable URLs implemented:
 
 ### ETL step needed (run after `batch_pairs.py`)
 ```bash
-DATABASE_URL=... python etl/add_slugs.py
+DATABASE_URL=... python -m etl.add_slugs
 ```
 Also run after `deduplicate_players.py` since dedup renames rows.
 
