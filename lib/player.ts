@@ -38,18 +38,21 @@ export async function getPlayerData(id: number): Promise<PlayerData | null> {
 
 export async function getTopNeighbors(id: bigint | number, limit = 5): Promise<NeighborData[]> {
   const sql = getDb();
+  // Coerce to bigint so postgres.js resolves the correct tagged-template overload.
+  // BigInt(x) is a no-op when x is already a bigint; safe for in-range numbers too.
+  const pgId = BigInt(id);
   // Two-branch UNION ALL so each branch uses its dedicated index:
   //   idx_opponents_a (player_a_id) and idx_opponents_b (player_b_id)
   const rows = await sql<NeighborData[]>`
     SELECT p.id, p.name, p.title, p.federation, o.game_count, p.slug
     FROM opponents o
     JOIN players p ON p.id = o.player_b_id
-    WHERE o.player_a_id = ${id}
+    WHERE o.player_a_id = ${pgId}
     UNION ALL
     SELECT p.id, p.name, p.title, p.federation, o.game_count, p.slug
     FROM opponents o
     JOIN players p ON p.id = o.player_a_id
-    WHERE o.player_b_id = ${id}
+    WHERE o.player_b_id = ${pgId}
     ORDER BY game_count DESC
     LIMIT ${limit}
   `;
