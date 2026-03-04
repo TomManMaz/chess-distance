@@ -43,16 +43,20 @@ export async function getTopNeighbors(id: bigint | number, limit = 5): Promise<N
   const pgId = BigInt(id);
   // Two-branch UNION ALL so each branch uses its dedicated index:
   //   idx_opponents_a (player_a_id) and idx_opponents_b (player_b_id)
+  // TypeScript cast: postgres.js checks typeof at runtime (sees bigint → int8),
+  // but the TS type system rejects mixing bigint + number in the same sql<T> template.
+  // Casting to `unknown as number` is a TypeScript-only lie; the runtime value stays bigint.
+  const pgIdParam = pgId as unknown as number;
   const rows = await sql<NeighborData[]>`
     SELECT p.id, p.name, p.title, p.federation, o.game_count, p.slug
     FROM opponents o
     JOIN players p ON p.id = o.player_b_id
-    WHERE o.player_a_id = ${pgId}
+    WHERE o.player_a_id = ${pgIdParam}
     UNION ALL
     SELECT p.id, p.name, p.title, p.federation, o.game_count, p.slug
     FROM opponents o
     JOIN players p ON p.id = o.player_a_id
-    WHERE o.player_b_id = ${pgId}
+    WHERE o.player_b_id = ${pgIdParam}
     ORDER BY game_count DESC
     LIMIT ${limit}
   `;
@@ -69,18 +73,21 @@ export async function getPlayerBySlug(slug: string): Promise<PlayerData | null> 
   `;
   if (idRow.length === 0) return null;
   const id = idRow[0].id; // BigInt — pass directly to SQL template literals
+  // TypeScript-only cast: postgres.js checks typeof at runtime (bigint → int8 wire type),
+  // but sql<T> template types reject mixing bigint with the generic parameter in TS 5.5+.
+  const idParam = id as unknown as number;
 
   // Step 2: fetch full player data. Use id (BigInt) in both WHERE and subquery
   // so CockroachDB receives the exact 64-bit integer value.
   const rows = await sql<PlayerData[]>`
     SELECT p.id, p.name, p.fide_id, p.federation, p.title, p.birth_year, p.death_year,
            (SELECT COALESCE(SUM(gc), 0) FROM (
-             SELECT game_count AS gc FROM opponents WHERE player_a_id = ${id}
+             SELECT game_count AS gc FROM opponents WHERE player_a_id = ${idParam}
              UNION ALL
-             SELECT game_count AS gc FROM opponents WHERE player_b_id = ${id}
+             SELECT game_count AS gc FROM opponents WHERE player_b_id = ${idParam}
            ) _g)::int AS total_games
     FROM players p
-    WHERE p.id = ${id}
+    WHERE p.id = ${idParam}
   `;
   if (rows.length === 0) return null;
   return rows[0];
