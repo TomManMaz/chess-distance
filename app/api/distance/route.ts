@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { scrapeFidePlayer } from "@/lib/fide-scraper";
-import { findShortestPath, invalidateCache } from "@/lib/bfs";
+import { findShortestPath } from "@/lib/bfs";
 import type { TimeControlFilter } from "@/lib/bfs";
 
 export async function GET(request: NextRequest) {
@@ -33,7 +33,6 @@ export async function GET(request: NextRequest) {
   // scraped yet, fetch their opponents now before running BFS.
   // Wrapped in try/catch so a missing fide_scraped_at column doesn't break the route.
   const sql = getDb();
-  let scraped = false;
   try {
     const [fromRows, toRows] = await Promise.all([
       sql<{ fide_id: number | null; fide_scraped_at: Date | null }[]>`
@@ -47,33 +46,28 @@ export async function GET(request: NextRequest) {
     for (const rows of [fromRows, toRows]) {
       const p = rows[0];
       if (p?.fide_id && !p.fide_scraped_at) {
+        // Fire-and-forget: do not block the response waiting for FIDE scraping.
+        // The path result uses whatever data is already in the DB; the next
+        // request (after cache TTL expires) will include the newly scraped games.
+        const fideId = p.fide_id;
+        scrapeFidePlayer(Number(fideId), sql)
+          .then(() => {
+            console.log(`[distance] Background scrape done for FIDE ${fideId}`);
+          })
+          .catch((err) => {
+            console.warn(`[distance] Background scrape failed for FIDE ${fideId}:`, err);
+          });
+        // Mark as scraped immediately so we don't re-trigger on the next request.
         try {
-          await Promise.race([
-            scrapeFidePlayer(Number(p.fide_id), sql).then(() => {
-              scraped = true;
-            }),
-            new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error("scrape timeout")), 50_000)
-            ),
-          ]);
-        } catch (err) {
-          const fideId = p.fide_id;
-          console.warn(`[distance] Scrape for FIDE ${fideId} failed/timed out:`, err);
-          try {
-            await sql`UPDATE players SET fide_scraped_at = NOW() WHERE fide_id = ${fideId}`;
-            scraped = true;
-          } catch {
-            // DB update failed — allow retry next request
-          }
+          await sql`UPDATE players SET fide_scraped_at = NOW() WHERE fide_id = ${fideId}`;
+        } catch {
+          // fide_scraped_at column may not exist yet — ignore
         }
       }
     }
   } catch {
     // fide_scraped_at column may not exist yet — skip scraping
-    // Run: DATABASE_URL=... python -m etl.migrate_fide_scraped_at
   }
-
-  if (scraped) invalidateCache();
 
   const result = await findShortestPath(fromId, toId, tcFilter);
 
