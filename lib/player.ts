@@ -58,17 +58,13 @@ export async function getTopNeighbors(id: number, limit = 5): Promise<NeighborDa
 
 export async function getPlayerBySlug(slug: string): Promise<PlayerData | null> {
   const sql = getDb();
-  const rows = await sql<PlayerData[]>`
-    SELECT p.id, p.name, p.fide_id, p.federation, p.title, p.birth_year, p.death_year,
-           (SELECT COALESCE(SUM(gc), 0) FROM (
-             SELECT game_count AS gc FROM opponents WHERE player_a_id = p.id
-             UNION ALL
-             SELECT game_count AS gc FROM opponents WHERE player_b_id = p.id
-           ) _g)::int AS total_games
-    FROM players p
-    WHERE p.slug = ${slug}
-    LIMIT 1
+  // Two-step: look up id by slug first (simple index scan), then call getPlayerData
+  // which uses a parameterized UNION ALL for total_games.
+  // A single correlated UNION ALL (WHERE player_a_id = p.id UNION ALL ... WHERE player_b_id = p.id)
+  // is not supported by CockroachDB when p.id is a column ref inside a derived table.
+  const idRow = await sql<{ id: number }[]>`
+    SELECT id FROM players WHERE slug = ${slug} LIMIT 1
   `;
-  if (rows.length === 0) return null;
-  return rows[0];
+  if (idRow.length === 0) return null;
+  return getPlayerData(Number(idRow[0].id));
 }
