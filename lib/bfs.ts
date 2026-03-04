@@ -7,6 +7,10 @@ interface AdjEntry {
   neighborId: number;
   gameCount: number;
   classicalCount: number;
+  rapidCount: number;
+  blitzCount: number;
+  firstGameDate: string | null;
+  lastGameDate: string | null;
   firstGameYear: number | null;
   lastGameYear: number | null;
 }
@@ -133,18 +137,21 @@ async function loadGraph(): Promise<GraphCache> {
     player_b_id: number;
     game_count: number;
     classical_count: number;
+    rapid_count: number;
+    blitz_count: number;
     first_game_date: unknown;
     last_game_date: unknown;
   }[];
   try {
     edges = await sql`
-      SELECT player_a_id, player_b_id, game_count, classical_count,
+      SELECT player_a_id, player_b_id, game_count, classical_count, rapid_count, blitz_count,
              first_game_date, last_game_date
       FROM opponents
     ` as typeof edges;
   } catch {
     edges = await sql`
       SELECT player_a_id, player_b_id, game_count, game_count AS classical_count,
+             0 AS rapid_count, 0 AS blitz_count,
              NULL AS first_game_date, NULL AS last_game_date
       FROM opponents
     ` as typeof edges;
@@ -156,8 +163,12 @@ async function loadGraph(): Promise<GraphCache> {
     const b  = Number(row.player_b_id);
     const gc = Number(row.game_count);
     const cc = Number(row.classical_count) ?? gc;
-    const fy = extractYear(row.first_game_date);
-    const ly = extractYear(row.last_game_date);
+    const rc = Number(row.rapid_count) ?? 0;
+    const bc = Number(row.blitz_count) ?? 0;
+    const fd = row.first_game_date ? String(row.first_game_date) : null;
+    const ld = row.last_game_date ? String(row.last_game_date) : null;
+    const fy = extractYear(fd);
+    const ly = extractYear(ld);
 
     const pA = pMap.get(a);
     const pB = pMap.get(b);
@@ -165,8 +176,8 @@ async function loadGraph(): Promise<GraphCache> {
 
     if (!adj.has(a)) adj.set(a, []);
     if (!adj.has(b)) adj.set(b, []);
-    adj.get(a)!.push({ neighborId: b, gameCount: gc, classicalCount: cc, firstGameYear: fy, lastGameYear: ly });
-    adj.get(b)!.push({ neighborId: a, gameCount: gc, classicalCount: cc, firstGameYear: fy, lastGameYear: ly });
+    adj.get(a)!.push({ neighborId: b, gameCount: gc, classicalCount: cc, rapidCount: rc, blitzCount: bc, firstGameDate: fd, lastGameDate: ld, firstGameYear: fy, lastGameYear: ly });
+    adj.get(b)!.push({ neighborId: a, gameCount: gc, classicalCount: cc, rapidCount: rc, blitzCount: bc, firstGameDate: fd, lastGameDate: ld, firstGameYear: fy, lastGameYear: ly });
   }
 
   cache = { adjacency: adj, playersMap: pMap, loadedAt: now };
@@ -312,8 +323,35 @@ export function findShortestPathFromGraph(
   const result: PathNode[] = fullPath.map((nodeId, i) => {
     const player = pMap.get(nodeId)!;
     const nextNodeId = fullPath[i + 1];
-    const gc = nextNodeId !== undefined ? getGameCount(adj, nodeId, nextNodeId, tcFilter) : null;
-    return { player, game_count: gc };
+    let gc = null;
+    let fd = null;
+    let ld = null;
+    let cc = 0;
+    let rc = 0;
+    let bc = 0;
+    if (nextNodeId !== undefined) {
+      const neighbors = adj.get(nodeId);
+      if (neighbors) {
+        const entry = neighbors.find((e) => e.neighborId === nextNodeId);
+        if (entry) {
+          gc = edgeWeight(entry, tcFilter);
+          fd = entry.firstGameDate;
+          ld = entry.lastGameDate;
+          cc = entry.classicalCount;
+          rc = entry.rapidCount;
+          bc = entry.blitzCount;
+        }
+      }
+    }
+    return { 
+      player, 
+      game_count: gc,
+      first_game_date: fd,
+      last_game_date: ld,
+      classical_count: cc,
+      rapid_count: rc,
+      blitz_count: bc,
+    };
   });
 
   return { distance: fullPath.length - 1, path: result };

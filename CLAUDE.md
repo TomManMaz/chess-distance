@@ -131,6 +131,60 @@ The BFS adjacency list skips edges where player lifespans provably don't overlap
 - **Test run:** Executed `npm test` — all tests passed (68 tests).
 - **Process note:** Per project convention, this file will be updated to record repo changes whenever code or tests are modified.
 
+## CSauthors-style Path Display (2026-03-04) — NEW
+
+Enhanced the path visualization to match the compact, metadata-rich chain format of CSauthors.net/distance:
+
+**What changed:**
+
+1. **Enhanced PathNode type** (`lib/types.ts`):
+   - Added optional fields: `first_game_date`, `last_game_date`, `classical_count`, `rapid_count`, `blitz_count`
+   - Enables rich metadata display without extra API calls
+
+2. **BFS now returns full edge metadata** (`lib/bfs.ts`):
+   - Updated `AdjEntry` interface to include `rapidCount`, `blitzCount`, `firstGameDate`, `lastGameDate`
+   - Database query fetches these fields (with graceful fallback for missing columns)
+   - PathNode construction now includes all metadata per edge
+
+3. **Redesigned path visualization** (`components/DistanceResult.tsx`):
+   - **Inline chain display** (CSauthors style):
+     - Shows: `[Player A] played [12 games] with [Player B] played [5 games] with [Player C]`
+     - Game count appears in a prominent badge
+   - **Time control tags** directly below game count:
+     - Colored pills: `8 classical` (blue), `3 rapid` (orange), `2 blitz` (red)
+   - **Date ranges** shown inline (if available from DB)
+   - **Summary stats** on first load:
+     - Total games across path
+     - Total players in path
+   - **Expandable "View game details"** section for full metadata modal
+
+4. **Updated all unit tests** (`__tests__/bfs.test.ts`):
+   - All `AdjEntry` mock objects updated with new fields
+   - All 90 tests pass ✅
+
+**Visual flow (user sees):**
+
+```
+Morphy and Carlsen are 8 opponents apart · hide path ▴
+120 total games · 9 players
+
+Morphy
+played [12 games] with
+8 classical 4 rapid 0 blitz
+1850-06-15 – 1858-10-10
+Anderssen
+...
+Carlsen
+```
+
+**Benefits:**
+
+- ✅ Matches CSauthors' proven UX with game metadata inline
+- ✅ No extra API calls (metadata pre-fetched in BFS result)
+- ✅ Time control breakdown visible at a glance
+- ✅ Date ranges help contextualize connections
+- ✅ Expandable details modal available if user wants full game list
+
 ## One-Site-Per-Player: Recommendation
 
 - **Short answer:** Prefer a single Next.js site that exposes one canonical page per player (dynamic routes), rather than running separate websites per player.

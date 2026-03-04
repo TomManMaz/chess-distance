@@ -19,6 +19,11 @@ export interface OpponentEdge {
 export interface PathNode {
   player: Player;
   game_count: number | null; // games between this player and the next in the path
+  first_game_date?: string | null; // date of earliest game with next player
+  last_game_date?: string | null; // date of latest game with next player
+  classical_count?: number; // classical games with next player
+  rapid_count?: number; // rapid games with next player
+  blitz_count?: number; // blitz games with next player
 }
 
 export interface DistanceResult {

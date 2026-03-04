@@ -126,21 +126,38 @@ export default function DistanceResult({ result }: DistanceResultProps) {
           <PlayerLink player={first.player} className="font-bold" /> is the same player.
         </p>
       ) : (
-        <p className="text-lg text-[var(--board-dark)] leading-snug">
-          <PlayerLink player={first.player} className="font-bold" />
-          {" and "}
-          <PlayerLink player={last.player} className="font-bold" />
-          {" are "}
-          <span className="font-bold text-[var(--accent)]">{result.distance}</span>
-          {result.distance === 1 ? " opponent apart" : " opponents apart"}
-          {" · "}
-          <button
-            onClick={() => setShowDetails(!showDetails)}
-            className="text-sm text-[var(--accent)] hover:text-[var(--board-dark)] transition-colors cursor-pointer"
-          >
-            {showDetails ? "hide path ▴" : "show path ▾"}
-          </button>
-        </p>
+        <div>
+          <p className="text-lg text-[var(--board-dark)] leading-snug">
+            <PlayerLink player={first.player} className="font-bold" />
+            {" and "}
+            <PlayerLink player={last.player} className="font-bold" />
+            {" are "}
+            <span className="font-bold text-[var(--accent)]">{result.distance}</span>
+            {result.distance === 1 ? " opponent apart" : " opponents apart"}
+            {" · "}
+            <button
+              onClick={() => setShowDetails(!showDetails)}
+              className="text-sm text-[var(--accent)] hover:text-[var(--board-dark)] transition-colors cursor-pointer"
+            >
+              {showDetails ? "hide path ▴" : "show path ▾"}
+            </button>
+          </p>
+
+          {/* Path stats summary (CSauthors-style) */}
+          {showDetails && (
+            <div className="mt-2 text-sm text-[var(--text-secondary)] space-x-4">
+              <span>
+                <span className="font-medium text-[var(--board-dark)]">
+                  {result.path.reduce((sum, node) => sum + (node.game_count ?? 0), 0)}
+                </span>{" "}
+                total games
+              </span>
+              <span>
+                <span className="font-medium text-[var(--board-dark)]">{result.path.length}</span> players
+              </span>
+            </div>
+          )}
+        </div>
       )}
 
       {/* ── Warning if any player lacks birth year ── */}
@@ -150,47 +167,106 @@ export default function DistanceResult({ result }: DistanceResultProps) {
         </p>
       )}
 
-      {/* ── Path details (expandable) ── */}
+      {/* ── Path details (expandable, CSauthors-style inline chain) ── */}
       {result.distance > 0 && (
         <>
           {showDetails && (
-            <div className="mt-4 inline-block text-left">
-              {/* First player */}
-              <div className="mb-1">
-                <PlayerLink player={first.player} className="text-lg font-bold text-[var(--board-dark)]" />
-              </div>
-
-              {result.path.map((node, i) => {
-                if (i >= result.path.length - 1) return null;
-                const next = result.path[i + 1];
-                const gc   = node.game_count ?? 0;
-                return (
-                  <div key={`${node.player.id}-${next.player.id}`}>
-                    {/* Connector */}
-                    <div className="text-[var(--text-secondary)] text-sm pl-4 border-l-2 border-[var(--board-dark)]/20 ml-2 my-1">
-                      played{" "}
-                      <a
-                        onClick={() => openGames(node.player.id, next.player.id)}
-                        className="text-[var(--accent)] underline cursor-pointer hover:text-[var(--board-dark)] font-medium"
-                      >
-                        {gc} {gc === 1 ? "game" : "games"}
-                      </a>
-                      {" "}against
-                    </div>
-                    {/* Next player (skip the last one — rendered below) */}
-                    {i < result.path.length - 2 && (
-                      <div className="mb-1">
-                        <PlayerLink player={next.player} className="text-lg font-bold text-[var(--board-dark)]" />
+            <div className="mt-6 space-y-4">
+              {/* Compact inline chain (CSauthors style) */}
+              <div className="text-sm leading-relaxed text-[var(--board-dark)] space-y-2">
+                <div>
+                  <PlayerLink player={first.player} className="font-bold hover:underline" />
+                </div>
+                {result.path.map((node, i) => {
+                  if (i >= result.path.length - 1) return null;
+                  const next = result.path[i + 1];
+                  const gc   = node.game_count ?? 0;
+                  return (
+                    <div key={`${node.player.id}-${next.player.id}`} className="space-y-1">
+                      <div className="text-[var(--text-secondary)] ml-2">
+                        played{" "}
+                        <a
+                          onClick={() => openGames(node.player.id, next.player.id)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 bg-[var(--accent)]/10 text-[var(--accent)] rounded-md hover:bg-[var(--accent)]/20 cursor-pointer font-semibold text-xs"
+                        >
+                          {gc} {gc === 1 ? "game" : "games"}
+                        </a>
+                        {" with "}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {/* Last player */}
-              <div className="mt-1">
-                <PlayerLink player={last.player} className="text-lg font-bold text-[var(--board-dark)]" />
+                      {/* Time control tags */}
+                      {(node.classical_count || node.rapid_count || node.blitz_count) && (
+                        <div className="flex gap-1.5 ml-2 text-xs">
+                          {node.classical_count ? (
+                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">
+                              {node.classical_count} classical
+                            </span>
+                          ) : null}
+                          {node.rapid_count ? (
+                            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full font-medium">
+                              {node.rapid_count} rapid
+                            </span>
+                          ) : null}
+                          {node.blitz_count ? (
+                            <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">
+                              {node.blitz_count} blitz
+                            </span>
+                          ) : null}
+                        </div>
+                      )}
+                      {/* Date range (optional) */}
+                      {(node.first_game_date || node.last_game_date) && (
+                        <div className="text-xs text-[var(--text-secondary)] ml-2 italic">
+                          {node.first_game_date && node.last_game_date && node.first_game_date !== node.last_game_date
+                            ? `${node.first_game_date} – ${node.last_game_date}`
+                            : node.first_game_date || node.last_game_date}
+                        </div>
+                      )}
+                      <div className="ml-2">
+                        <PlayerLink player={next.player} className="font-bold hover:underline" />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* Expandable tree view (additional details via modal) */}
+              <details className="text-xs text-[var(--text-secondary)] p-3 bg-[var(--board-light)]/30 rounded-lg">
+                <summary className="cursor-pointer font-semibold text-[var(--board-dark)] hover:text-[var(--accent)]">
+                  ▸ View game details
+                </summary>
+                <div className="mt-3 space-y-2">
+                  <div>
+                    <PlayerLink player={first.player} className="text-[var(--board-dark)] font-bold" />
+                  </div>
+                  {result.path.map((node, i) => {
+                    if (i >= result.path.length - 1) return null;
+                    const next = result.path[i + 1];
+                    const gc   = node.game_count ?? 0;
+                    return (
+                      <div key={`${node.player.id}-${next.player.id}`}>
+                        <div className="text-[var(--text-secondary)] pl-4 border-l-2 border-[var(--board-dark)]/20 ml-2 my-1">
+                          played{" "}
+                          <a
+                            onClick={() => openGames(node.player.id, next.player.id)}
+                            className="text-[var(--accent)] underline cursor-pointer hover:text-[var(--board-dark)] font-medium"
+                          >
+                            {gc} {gc === 1 ? "game" : "games"}
+                          </a>
+                          {" "}against
+                        </div>
+                        {i < result.path.length - 2 && (
+                          <div className="mt-1">
+                            <PlayerLink player={next.player} className="text-[var(--board-dark)] font-bold" />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <div className="mt-1">
+                    <PlayerLink player={last.player} className="text-[var(--board-dark)] font-bold" />
+                  </div>
+                </div>
+              </details>
             </div>
           )}
         </>
