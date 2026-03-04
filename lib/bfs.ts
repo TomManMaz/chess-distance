@@ -94,12 +94,20 @@ async function loadGraph(): Promise<GraphCache> {
 
   const sql = getDb();
 
-  // Try to load birth_year/death_year; fall back to nulls if migration hasn't run yet
+  // Load all players — a simple full-table scan is faster than any subquery
+  // against the 7M+ opponents table. Players not in any opponent pair are
+  // harmlessly ignored once the adjacency map is built.
   let players: { id: number; name: string; fide_id: number | null; federation: string | null; title: string | null; birth_year: number | null; death_year: number | null }[];
   try {
-    players = await sql`SELECT id, name, fide_id, federation, title, birth_year, death_year FROM players` as typeof players;
+    players = await sql`
+      SELECT id, name, fide_id, federation, title, birth_year, death_year FROM players
+    ` as typeof players;
   } catch {
-    players = await sql`SELECT id, name, fide_id, federation, title, NULL::smallint AS birth_year, NULL::smallint AS death_year FROM players` as typeof players;
+    players = await sql`
+      SELECT id, name, fide_id, federation, title,
+             NULL::smallint AS birth_year, NULL::smallint AS death_year
+      FROM players
+    ` as typeof players;
   }
   const pMap = new Map<number, Player>();
   for (const row of players) {

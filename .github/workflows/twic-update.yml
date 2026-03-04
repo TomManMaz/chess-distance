@@ -11,14 +11,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - uses: conda-incubator/setup-miniconda@v3
         with:
-          node-version: '20'
-
-      - name: Install dependencies
-        run: npm ci
+          environment-file: environment.yml
+          activate-environment: chess-distance-py
+          auto-activate-base: false
 
       - name: Run incremental TWIC update
-        run: node scripts/update-twic.js
+        run: python etl/update_twic.py
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
