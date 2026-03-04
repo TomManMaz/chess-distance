@@ -32,7 +32,9 @@ export default async function PlayerPage({ params }: Props) {
   const player = await getCachedPlayer(slug);
   if (!player) return notFound();
 
-  const neighbors = await getTopNeighbors(Number(player.id));
+  // player.id is typed as number but CockroachDB returns BigInt at runtime.
+  // Pass it directly so postgres.js sends the exact 64-bit value (no precision loss).
+  const neighbors = await getTopNeighbors(player.id as unknown as bigint);
 
   const display = toDisplayName(player.name);
   const flag = player.federation ? federationFlag(player.federation) : null;
