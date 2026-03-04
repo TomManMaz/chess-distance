@@ -70,7 +70,7 @@ export default async function PlayerPage({ params }: Props) {
         <dl className="mt-4 space-y-2 text-sm">
           {player.federation && (
             <div className="flex gap-2">
-              <dt className="text-[var(--text-secondary)] w-36 shrink-0">Nationality</dt>
+              <dt className="text-[var(--text-secondary)] w-36 shrink-0">Federation</dt>
               <dd className="font-medium text-[var(--board-dark)]">
                 {flag && <span className="mr-1">{flag}</span>}
                 {player.federation}
