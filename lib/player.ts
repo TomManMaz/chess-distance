@@ -22,11 +22,13 @@ export interface PlayerData {
 
 export async function getPlayerData(id: number): Promise<PlayerData | null> {
   const sql = getDb();
-  const rows = await sql<PlayerData[]>
-    `
-    SELECT p.id,p.name,p.fide_id,p.federation,p.title,p.birth_year,p.death_year,
-           (SELECT SUM(game_count) FROM opponents
-            WHERE player_a_id = ${id} OR player_b_id = ${id})::int AS total_games
+  const rows = await sql<PlayerData[]>`
+    SELECT p.id, p.name, p.fide_id, p.federation, p.title, p.birth_year, p.death_year,
+           (SELECT COALESCE(SUM(gc), 0) FROM (
+             SELECT game_count AS gc FROM opponents WHERE player_a_id = ${id}
+             UNION ALL
+             SELECT game_count AS gc FROM opponents WHERE player_b_id = ${id}
+           ) _g)::int AS total_games
     FROM players p
     WHERE p.id = ${id}
   `;
@@ -38,9 +40,7 @@ export async function getTopNeighbors(id: number, limit = 5): Promise<NeighborDa
   const sql = getDb();
   // Two-branch UNION ALL so each branch uses its dedicated index:
   //   idx_opponents_a (player_a_id) and idx_opponents_b (player_b_id)
-  // A CASE expression in the JOIN would prevent index usage (full scan).
-  const rows = await sql<NeighborData[]>
-    `
+  const rows = await sql<NeighborData[]>`
     SELECT p.id, p.name, p.title, p.federation, o.game_count, p.slug
     FROM opponents o
     JOIN players p ON p.id = o.player_b_id
@@ -58,20 +58,17 @@ export async function getTopNeighbors(id: number, limit = 5): Promise<NeighborDa
 
 export async function getPlayerBySlug(slug: string): Promise<PlayerData | null> {
   const sql = getDb();
-  try {
-    const rows = await sql<PlayerData[]>
-      `
-      SELECT p.id,p.name,p.fide_id,p.federation,p.title,p.birth_year,p.death_year,
-             (SELECT SUM(game_count) FROM opponents
-              WHERE player_a_id = p.id OR player_b_id = p.id)::int AS total_games
-      FROM players p
-      WHERE p.slug = ${slug}
-      LIMIT 1
-    `;
-    if (rows.length === 0) return null;
-    return rows[0];
-  } catch {
-    // slug column may not exist yet — run: DATABASE_URL=... python -m etl.add_slugs
-    return null;
-  }
+  const rows = await sql<PlayerData[]>`
+    SELECT p.id, p.name, p.fide_id, p.federation, p.title, p.birth_year, p.death_year,
+           (SELECT COALESCE(SUM(gc), 0) FROM (
+             SELECT game_count AS gc FROM opponents WHERE player_a_id = p.id
+             UNION ALL
+             SELECT game_count AS gc FROM opponents WHERE player_b_id = p.id
+           ) _g)::int AS total_games
+    FROM players p
+    WHERE p.slug = ${slug}
+    LIMIT 1
+  `;
+  if (rows.length === 0) return null;
+  return rows[0];
 }
