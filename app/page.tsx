@@ -127,6 +127,21 @@ export default function Home() {
             {loading ? "Calculating…" : "Find path"}
           </button>
         </div>
+
+        {/* Progress bar */}
+        {loading && (
+          <div className="mt-3">
+            <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full w-1/3 bg-[var(--accent)] rounded-full"
+                style={{ animation: "loading-slide 1.4s ease-in-out infinite" }}
+              />
+            </div>
+            <p className="mt-1.5 text-xs text-center text-[var(--text-secondary)]">
+              Searching the game graph…
+            </p>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -212,36 +227,6 @@ export default function Home() {
       )}
 
       <Stats />
-
-      <footer className="mt-16 text-center text-sm text-[var(--text-secondary)]">
-        Inspired by{" "}
-        <a
-          href="https://csauthors.net/distance"
-          className="underline hover:text-[var(--board-dark)]"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          CSauthors.net/distance
-        </a>
-        .{" "}
-        <a
-          href="https://github.com/TomManMaz/chess-distance"
-          className="underline hover:text-[var(--board-dark)]"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Source on GitHub
-        </a>
-        .
-        <br />
-        <span className="text-xs">
-          Built with{" "}
-          <a href="https://nextjs.org" className="underline hover:text-[var(--board-dark)]" target="_blank" rel="noopener noreferrer">Next.js</a>,{" "}
-          <a href="https://www.cockroachlabs.com" className="underline hover:text-[var(--board-dark)]" target="_blank" rel="noopener noreferrer">CockroachDB</a>,{" "}
-          <a href="https://tailwindcss.com" className="underline hover:text-[var(--board-dark)]" target="_blank" rel="noopener noreferrer">Tailwind CSS</a>,{" "}
-          and <a href="https://vercel.com" className="underline hover:text-[var(--board-dark)]" target="_blank" rel="noopener noreferrer">Vercel</a>.
-        </span>
-      </footer>
     </main>
   );
 }
