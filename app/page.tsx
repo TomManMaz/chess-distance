@@ -54,19 +54,19 @@ export default function Home() {
   async function tryExample() {
     setError(null);
     try {
-      // Use FIDE IDs for reliability: Carlsen=1503014, Tal Mikhail=600813
+      // Use FIDE IDs for reliability: Carlsen=1503014, King Daniel J=400068
       const [resA, resB] = await Promise.all([
         fetch("/api/search?q=1503014").then(r => r.json()),
-        fetch("/api/search?q=600813").then(r => r.json()),
+        fetch("/api/search?q=400068").then(r => r.json()),
       ]);
       const carlsen: SearchResult | undefined = resA[0];
-      const tal: SearchResult | undefined = resB[0];
-      if (!carlsen || !tal) { setError("Example players not found."); return; }
+      const king: SearchResult | undefined = resB[0];
+      if (!carlsen || !king) { setError("Example players not found."); return; }
       setPlayerA(carlsen);
-      setPlayerB(tal);
+      setPlayerB(king);
       setExternalA(carlsen);
-      setExternalB(tal);
-      await calculateWith(carlsen, tal);
+      setExternalB(king);
+      await calculateWith(carlsen, king);
     } catch {
       setError("An error occurred. Please try again.");
     }
