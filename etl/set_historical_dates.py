@@ -21,7 +21,8 @@ from etl.db import get_conn
 # [exact_name_in_db, birth_year, death_year | None]
 HISTORICAL_PLAYERS: list[tuple[str, int, int | None]] = [
     # 19th century masters
-    ("Morphy, Paul ",               1837, 1884),  # trailing space in DB
+    ("Morphy, Paul",                1837, 1884),
+    ("Morphy, Paul ",               1837, 1884),  # trailing-space variant
     ("Anderssen, Adolf",            1818, 1879),
     ("Bird, Henry Edward",          1830, 1908),
     ("Steinitz, William",           1836, 1900),
@@ -68,7 +69,8 @@ HISTORICAL_PLAYERS: list[tuple[str, int, int | None]] = [
     ("Denker, Arnold S",            1914, 2005),
     ("Lilienthal, Andor",           1911, 2010),
     ("Bondarevsky, Igor",           1913, 1979),
-    ("Smyslov, Vassily",            1921, 2010),
+    ("Smyslov, Vassily",            1921, 2010),  # canonical (most games)
+    ("Smyslov, Vasily",             1921, 2010),  # variant — also update so dedup merges correctly
     ("Geller, Efim P",              1925, 1998),
     ("Tal, Mihail",                 1936, 1992),
     ("Petrosian, Tigran V",         1929, 1984),
@@ -88,6 +90,8 @@ HISTORICAL_PLAYERS: list[tuple[str, int, int | None]] = [
 
     # Modern world champions (frequently appear in paths)
     ("Karpov, Anatoly",             1951, None),
+    ("Kasparov, Garry",             1963, None),
+    ("Kasparov, Gary",              1963, None),  # alternate spelling
     ("Kasparov, G",                 1963, None),
     ("Polgar, Ju",                  1976, None),
     ("Anand, Viswanathan",          1969, None),
@@ -101,6 +105,7 @@ HISTORICAL_PLAYERS: list[tuple[str, int, int | None]] = [
     ("Giri, Anish",                 1994, None),
     ("Caruana, F",                  1992, None),
     ("Nepomniachtchi, I",           1990, None),
+    ("Ding, Liren",                  1992, None),
     ("Ding, L",                     1992, None),
     ("Grischuk, A",                 1983, None),
     ("Mamedyarov, S",               1985, None),

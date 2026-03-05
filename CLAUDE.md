@@ -17,11 +17,47 @@ A web app that calculates the shortest "opponent path" between any two chess pla
 
 ## Current Database State
 - **~832K players** (FIDE XML provides bulk; historical from 1850s + modern FIDE-rated players)
-- **Millions of opponent pairs** — TWIC 920–1633 + PGN Mentor + Lumbras Gigabase (full rebuild in progress as of 2026-03-04 with BigInt fix)
+- **Millions of opponent pairs** — TWIC 920–1633 + PGN Mentor + Lumbras Gigabase
 - Morphy (1850s) is connected; Morphy → Carlsen distance = 8 (via real historical chain through Anderssen)
 - Dummy/computer players (NN, Comp*) removed via `cleanup-data.js`
 - `opponents` table has `classical_count`, `rapid_count`, `blitz_count`, `event_sample` columns
 - `players` table has `birth_year`, `death_year` columns
+- Birth/death years set for ~120 historical players including all world champions (run 2026-03-05)
+
+## World Champions in DB (canonical names — verified 2026-03-05)
+All 18 classical world champions are present with game data and birth/death years:
+| Player | DB name | Games |
+|--------|---------|-------|
+| Paul Morphy | `Morphy, Paul` | 199 |
+| Wilhelm Steinitz | `Steinitz, William` | 809 |
+| Emanuel Lasker | `Lasker, Emanuel` | 1,954 |
+| José Capablanca | `Capablanca, Jose Raul` | 767 |
+| Alexander Alekhine | `Alekhine, Alexander` | 3,476 |
+| Max Euwe | `Euwe, Max` | 3,077 |
+| Mikhail Botvinnik | `Botvinnik, Mikhail` | 1,220 |
+| Vasily Smyslov | `Smyslov, Vassily` | 3,128 |
+| Mikhail Tal | `Tal, Mihail` | 2,854 |
+| Tigran Petrosian | `Petrosian, Tigran V` | 2,428 |
+| Boris Spassky | `Spassky, Boris V` | 2,798 |
+| Robert Fischer | `Fischer, Robert James` | 929 |
+| Anatoly Karpov | `Karpov, Anatoly` | 2,577 |
+| Garry Kasparov | `Kasparov, Garry` | 2,269 (+ variants) |
+| Vladimir Kramnik | `Kramnik, Vladimir` | 3,272 |
+| Viswanathan Anand | `Anand, Viswanathan` | 3,955 |
+| Magnus Carlsen | `Carlsen, Magnus` | 4,428 |
+| Ding Liren | `Ding, Liren` | 1,659 |
+
+**Known duplicate issues (need `deduplicate_players.py`):**
+- `Kasparov, Garry` / `Kasparov, Gary` / `Kasparov, G` — same person
+- `Smyslov, Vassily` / `Smyslov, Vasily` — same person
+- `Botvinnik, Mikhail` — two rows (one with FIDE 2805650, one historical)
+
+**Known broken chain links (no direct games in DB — need investigation):**
+- Morphy → Steinitz: 0 direct games (historically played ~1866; data may be missing)
+- Steinitz → Lasker: 0 direct games
+- Lasker → Capablanca: 0 direct games (but 1,954 Lasker games exist — duplicates confuse verify_chain)
+- Fischer → Karpov: 0 games — historically accurate, they NEVER played officially
+- Smyslov → Tal: 0 direct games (duplicate Smyslov rows; likely connected after dedup)
 
 ## CockroachDB Driver Notes
 - Driver: `postgres` npm package (postgres.js v3+)
@@ -418,4 +454,24 @@ Then run:
 pytest tests/test_slug.py -v
 ```
 
+## Session updates (2026-03-05)
 
+### Bug fixes deployed to production
+- **Example players on homepage** (`app/page.tsx`): Changed from Carlsen vs Tal (FIDE 600813 — not in DB) to **Carlsen vs King, Daniel J** (FIDE 400068). The page was showing "Example players not found" on every load.
+- **Duplicate birth year** (`app/[player]/page.tsx`): Removed redundant "Birth year" row from the details `<dl>` — birth/death already shown as subtitle under player name.
+- **FIDE scraping** (`app/api/distance/route.ts`): Made fire-and-forget (no longer blocks distance API for up to 100s).
+- **db.py SSL** (`etl/db.py`): Skip `sslrootcert=system` when URL contains `sslmode=require` (Neon compatibility).
+- **Production DB** switched from Neon (512 MB free tier, full) to CockroachDB.
+
+### New scripts
+- `etl/verify_chain.py` — verifies all 18 world champions are in DB with game data and correct birth/death years; checks consecutive champion pairs for direct game connections.
+- `scripts/benchmark-distance.ts` — benchmarks cold-start graph load time (~12–26s) vs warm BFS (<1ms).
+
+### Historical player dates
+- `etl/set_historical_dates.py` extended: added Kasparov, Garry / Kasparov, Gary / Kasparov, G, Ding, Liren, Smyslov name variants, Morphy without trailing space. Ran 2026-03-05 — 106 rows updated.
+
+### Pending (next session)
+- **Dark theme toggle** — user requested; not yet implemented.
+- **Dedup world champions** — `deduplicate_players.py` needs to run to merge Kasparov / Smyslov / Botvinnik / Lasker / Alekhine / Euwe duplicate rows (script took too long in dry-run, aborted).
+- **Verify chain after dedup** — re-run `etl/verify_chain.py` once dedup is done.
+- **Broken chain links** — after dedup, check and fix: Morphy→Steinitz, Steinitz→Lasker, Lasker→Capablanca (likely data is there under duplicate rows), Smyslov→Tal.
