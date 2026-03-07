@@ -131,16 +131,23 @@ def phase1_exact(conn, dry_run: bool) -> int:
     print("\n=== Phase 1: Exact duplicates ===")
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
         cur.execute("""
+            WITH game_counts AS (
+                SELECT player_id, SUM(game_count) AS total_games
+                FROM (
+                    SELECT player_a_id AS player_id, game_count FROM opponents
+                    UNION ALL
+                    SELECT player_b_id AS player_id, game_count FROM opponents
+                ) both_sides
+                GROUP BY player_id
+            )
             SELECT
                 LOWER(TRIM(p.name)) AS norm,
                 json_agg(json_build_object(
                     'id', p.id, 'name', p.name, 'fide_id', p.fide_id,
-                    'total_games', COALESCE((
-                        SELECT SUM(game_count) FROM opponents
-                        WHERE player_a_id = p.id OR player_b_id = p.id
-                    ), 0)
+                    'total_games', COALESCE(gc.total_games, 0)
                 )) AS players
             FROM players p
+            LEFT JOIN game_counts gc ON gc.player_id = p.id
             GROUP BY LOWER(TRIM(p.name))
             HAVING COUNT(*) > 1
             ORDER BY LOWER(TRIM(p.name))
@@ -176,13 +183,22 @@ def phase2_abbreviated(conn, dry_run: bool) -> int:
     import psycopg.rows
     print("\n=== Phase 2: Abbreviated/truncated-name duplicates ===")
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        # Pre-aggregate game counts in one pass (avoids 832K correlated subqueries)
         cur.execute("""
+            WITH game_counts AS (
+                SELECT player_id, SUM(game_count) AS total_games
+                FROM (
+                    SELECT player_a_id AS player_id, game_count FROM opponents
+                    UNION ALL
+                    SELECT player_b_id AS player_id, game_count FROM opponents
+                ) both_sides
+                GROUP BY player_id
+            )
             SELECT p.id, p.name, p.fide_id,
-                COALESCE((
-                    SELECT SUM(game_count) FROM opponents
-                    WHERE player_a_id = p.id OR player_b_id = p.id
-                ), 0) AS total_games
-            FROM players p ORDER BY p.name
+                COALESCE(gc.total_games, 0) AS total_games
+            FROM players p
+            LEFT JOIN game_counts gc ON gc.player_id = p.id
+            ORDER BY p.name
         """)
         all_players = cur.fetchall()
 

@@ -213,14 +213,6 @@ export default function DistanceResult({ result }: DistanceResultProps) {
                           ) : null}
                         </div>
                       )}
-                      {/* Date range (optional) */}
-                      {(node.first_game_date || node.last_game_date) && (
-                        <div className="text-xs text-[var(--text-secondary)] ml-2 italic">
-                          {node.first_game_date && node.last_game_date && node.first_game_date !== node.last_game_date
-                            ? `${node.first_game_date} – ${node.last_game_date}`
-                            : node.first_game_date || node.last_game_date}
-                        </div>
-                      )}
                       <div className="ml-2">
                         <PlayerLink player={next.player} className="font-bold hover:underline" />
                       </div>
@@ -281,19 +273,9 @@ function formatPlayerName(title: string | null, name: string, federation?: strin
   return flag ? `${flag} ${namePart}` : namePart;
 }
 
-function PlayerYears({ player }: { player: Player }) {
-  if (!player.birth_year) return null;
-  const years = player.death_year
-    ? `${player.birth_year}–${player.death_year}`
-    : `b. ${player.birth_year}`;
-  return (
-    <span className="ml-1.5 text-sm font-normal text-[var(--text-secondary)]">({years})</span>
-  );
-}
-
 function PlayerLink({ player, className }: { player: Player; className?: string }) {
   const label = formatPlayerName(player.title, player.name, player.federation);
-  const inner = <>{label}<PlayerYears player={player} /></>;
+  const inner = <>{label}</>;
   const slug = nameToSlug(player.name);
   return (
     <Link

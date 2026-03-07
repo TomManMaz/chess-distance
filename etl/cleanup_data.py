@@ -22,9 +22,23 @@ def main() -> None:
     with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
         cur.execute("""
             SELECT id, name FROM players
-            WHERE name IN ('NN', 'N.N.', 'N.N', '?', '??', 'Unknown', 'unknown', 'Comp', 'Computer')
+            WHERE name IN ('NN', 'N.N.', 'N.N', '?', '??', 'Unknown', 'unknown', 'Comp', 'Computer',
+                           'Stockfish', 'Komodo', 'Houdini', 'Fritz', 'Deep Blue', 'AlphaZero',
+                           'Leela', 'LC0', 'Lc0', 'Crafty', 'Rybka', 'Shredder', 'Junior',
+                           'Deep Junior', 'Deep Fritz', 'Hydra', 'Toga', 'Zappa')
                OR name LIKE 'Comp %%'
                OR name LIKE 'Team %%'
+               OR name LIKE 'Engine %%'
+               OR name LIKE 'Stockfish %%'
+               OR name LIKE 'Komodo %%'
+               OR name LIKE 'Houdini %%'
+               OR name LIKE 'Fritz %%'
+               OR name LIKE 'Deep %%'
+               OR name LIKE 'Leela %%'
+               OR name LIKE 'LC0 %%'
+               OR name LIKE 'Lc0 %%'
+               OR name LIKE 'Rybka %%'
+               OR name LIKE 'Shredder %%'
         """)
         dummies = cur.fetchall()
 

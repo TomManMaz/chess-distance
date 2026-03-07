@@ -50,3 +50,6 @@ __pycache__/
 *.pyo
 .pytest_cache/
 .env.vercel
+
+.vercel
+.claude/
