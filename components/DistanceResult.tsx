@@ -50,7 +50,7 @@ export default function DistanceResult({ result }: DistanceResultProps) {
           onClick={() => { setModal(null); setModalLoading(false); }}
         >
           <div
-            className="bg-white rounded-xl shadow-xl max-w-md w-full p-6"
+            className="bg-[var(--bg-card)] rounded-xl shadow-xl max-w-md w-full p-6"
             onClick={(e) => e.stopPropagation()}
           >
             {modalLoading ? (
@@ -61,7 +61,7 @@ export default function DistanceResult({ result }: DistanceResultProps) {
                   <h3 className="text-lg font-bold text-[var(--board-dark)]">Games between players</h3>
                   <button
                     onClick={() => setModal(null)}
-                    className="text-gray-400 hover:text-gray-600 text-2xl leading-none cursor-pointer"
+                    className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-2xl leading-none cursor-pointer"
                   >
                     &times;
                   </button>

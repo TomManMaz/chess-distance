@@ -105,7 +105,7 @@ export default function PlayerSearch({ placeholder = "Name or FIDE ID...", onSel
         onFocus={() => results.length > 0 && !selected && setIsOpen(true)}
         placeholder={placeholder}
         className="w-full px-4 py-3 border-2 border-[var(--board-dark)]/30 rounded-lg
-                   focus:outline-none focus:border-[var(--board-dark)] bg-white
+                   focus:outline-none focus:border-[var(--board-dark)] bg-[var(--bg-card)] text-[var(--text-primary)]
                    text-base transition-colors"
       />
       {loading && (
@@ -114,7 +114,7 @@ export default function PlayerSearch({ placeholder = "Name or FIDE ID...", onSel
         </div>
       )}
       {isOpen && results.length > 0 && (
-        <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+        <ul className="absolute z-10 w-full mt-1 bg-[var(--bg-card)] border border-[var(--board-light)] rounded-lg shadow-lg max-h-60 overflow-y-auto">
           {results.map((r) => (
             <li
               key={r.id}

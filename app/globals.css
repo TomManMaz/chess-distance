@@ -10,6 +10,16 @@
   --bg-card: #ffffff;
 }
 
+.dark {
+  --board-dark: #93c5fd;
+  --board-light: #1e2d4a;
+  --accent: #60a5fa;
+  --text-primary: #e8edf5;
+  --text-secondary: #9ab0cc;
+  --bg-primary: #0f1a2e;
+  --bg-card: #162035;
+}
+
 body {
   font-family: system-ui, -apple-system, sans-serif;
   background-color: var(--bg-primary);

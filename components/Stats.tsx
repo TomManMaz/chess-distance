@@ -32,19 +32,19 @@ export default function Stats() {
   return (
     <div className="mt-12">
       <div className="grid grid-cols-3 gap-4 text-center">
-        <div className="p-4 bg-white rounded-lg border border-gray-200">
+        <div className="p-4 bg-[var(--bg-card)] rounded-lg border border-[var(--board-light)]">
           <div className="text-2xl font-bold text-[var(--board-dark)]">
             {stats.total_players.toLocaleString()}
           </div>
           <div className="text-sm text-[var(--text-secondary)]">Players</div>
         </div>
-        <div className="p-4 bg-white rounded-lg border border-gray-200">
+        <div className="p-4 bg-[var(--bg-card)] rounded-lg border border-[var(--board-light)]">
           <div className="text-2xl font-bold text-[var(--board-dark)]">
             {stats.total_games.toLocaleString()}
           </div>
           <div className="text-sm text-[var(--text-secondary)]">Games</div>
         </div>
-        <div className="p-4 bg-white rounded-lg border border-gray-200">
+        <div className="p-4 bg-[var(--bg-card)] rounded-lg border border-[var(--board-light)]">
           <div className="text-2xl font-bold text-[var(--board-dark)]">
             {stats.total_opponent_pairs.toLocaleString()}
           </div>

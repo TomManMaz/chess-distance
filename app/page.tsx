@@ -105,7 +105,7 @@ export default function Home() {
             aria-checked={classicalOnly}
             onClick={handleToggleClassical}
             className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
-              classicalOnly ? "bg-[var(--board-dark)]" : "bg-gray-300"
+              classicalOnly ? "bg-[var(--board-dark)]" : "bg-[var(--board-light)]"
             }`}
           >
             <span
@@ -131,7 +131,7 @@ export default function Home() {
         {/* Progress bar */}
         {loading && (
           <div className="mt-3">
-            <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+            <div className="h-1 bg-[var(--board-light)] rounded-full overflow-hidden">
               <div
                 className="h-full w-1/3 bg-[var(--accent)] rounded-full"
                 style={{ animation: "loading-slide 1.4s ease-in-out infinite" }}
@@ -177,7 +177,7 @@ export default function Home() {
       </div>
 
       {showExplanation && (
-        <div className="mt-4 p-6 bg-white rounded-lg border border-gray-200 text-sm text-[var(--text-secondary)] leading-relaxed">
+        <div className="mt-4 p-6 bg-[var(--bg-card)] rounded-lg border border-[var(--board-light)] text-sm text-[var(--text-secondary)] leading-relaxed">
           <p className="mb-3">
             <em className="text-3xl float-left mr-3 leading-none text-[var(--board-dark)]">&ldquo;</em>
             Chess Distance finds the shortest opponent path between two chess

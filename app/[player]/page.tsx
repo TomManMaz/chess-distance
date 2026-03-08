@@ -58,7 +58,7 @@ export default async function PlayerPage({ params }: Props) {
         </Link>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-8">
+      <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--board-light)] p-8">
         <h1 className="text-3xl font-bold text-[var(--board-dark)] mb-1">
           {titlePrefix}{display}
         </h1>
