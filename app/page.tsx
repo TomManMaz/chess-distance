@@ -28,7 +28,11 @@ export default function Home() {
     setTcFiltered(false);
     const tc = (useClassicalOnly ?? classicalOnly) ? "classical" : "all";
     try {
-      const res = await fetch(`/api/distance?from=${a.id}&to=${b.id}&tc=${tc}`);
+      const apiBase = process.env.NEXT_PUBLIC_FASTAPI_URL ?? "";
+      const endpoint = apiBase
+        ? `${apiBase}/api/v2/distance?from=${a.id}&to=${b.id}&tc=${tc}`
+        : `/api/distance?from=${a.id}&to=${b.id}&tc=${tc}`;
+      const res = await fetch(endpoint);
       if (!res.body) throw new Error("No response body");
 
       const reader = res.body.getReader();
