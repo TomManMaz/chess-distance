@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { findShortestPath } from "@/lib/bfs";
+import { NextRequest } from "next/server";
+import { findShortestPath, isCacheWarm } from "@/lib/bfs";
 import type { TimeControlFilter } from "@/lib/bfs";
 
 export async function GET(request: NextRequest) {
@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const tcParam = request.nextUrl.searchParams.get("tc");
 
   if (!fromParam || !toParam) {
-    return NextResponse.json(
+    return Response.json(
       { error: "Both 'from' and 'to' query parameters are required" },
       { status: 400 }
     );
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   const toId = parseInt(toParam, 10);
 
   if (isNaN(fromId) || isNaN(toId)) {
-    return NextResponse.json(
+    return Response.json(
       { error: "'from' and 'to' must be valid player IDs" },
       { status: 400 }
     );
@@ -27,15 +27,47 @@ export async function GET(request: NextRequest) {
   const tcFilter: TimeControlFilter =
     tcParam === "classical" ? "classical" : "all";
 
-  const result = await findShortestPath(fromId, toId, tcFilter);
+  const encoder = new TextEncoder();
 
-  if (!result) {
-    const error =
-      tcFilter === "classical"
-        ? "No path found through classical games only. Try disabling the filter."
-        : "No path found between these players";
-    return NextResponse.json({ error, tcFiltered: tcFilter === "classical" }, { status: 404 });
-  }
+  const stream = new ReadableStream({
+    async start(controller) {
+      function send(event: string, data: string) {
+        controller.enqueue(
+          encoder.encode(`event: ${event}\ndata: ${data}\n\n`)
+        );
+      }
 
-  return NextResponse.json(result);
+      try {
+        // Tell the client whether this is a cold start or a warm cache hit
+        send("status", isCacheWarm() ? "Searching for shortest path…" : "Loading game graph…");
+
+        const result = await findShortestPath(fromId, toId, tcFilter, (msg) =>
+          send("status", msg)
+        );
+
+        if (!result) {
+          const error =
+            tcFilter === "classical"
+              ? "No path found through classical games only. Try disabling the filter."
+              : "No path found between these players";
+          send("error", JSON.stringify({ error, tcFiltered: tcFilter === "classical" }));
+        } else {
+          send("result", JSON.stringify(result));
+        }
+      } catch (err) {
+        send("error", JSON.stringify({ error: "An error occurred. Please try again." }));
+        console.error("[distance]", err);
+      }
+
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "X-Accel-Buffering": "no", // disable Nginx / Vercel proxy buffering
+    },
+  });
 }

@@ -70,7 +70,11 @@ function chronoCompatible(
   return true;
 }
 
-async function loadGraph(): Promise<GraphCache> {
+export function isCacheWarm(): boolean {
+  return cache !== null && Date.now() - cache.loadedAt < CACHE_TTL_MS;
+}
+
+async function loadGraph(onStatus?: (msg: string) => void): Promise<GraphCache> {
   const now = Date.now();
   if (cache && now - cache.loadedAt < CACHE_TTL_MS) return cache;
 
@@ -79,6 +83,7 @@ async function loadGraph(): Promise<GraphCache> {
   // Load ONLY the minimal player fields needed for BFS (birth/death years for
   // chronological compatibility). Name, title, federation etc. are fetched
   // post-BFS for the ~5-8 path players only — saving ~50MB of network transfer.
+  onStatus?.("Loading players…");
   const playerRows = await sql`
     SELECT id, birth_year, death_year FROM players
   ` as { id: number; birth_year: number | null; death_year: number | null }[];
@@ -91,6 +96,7 @@ async function loadGraph(): Promise<GraphCache> {
     });
   }
 
+  onStatus?.("Loading game graph…");
   // Load opponent edges with only the columns needed for BFS traversal.
   // rapid_count, blitz_count, first_game_date, last_game_date are NOT fetched
   // here — saves ~30MB of network transfer on cold start.
@@ -137,6 +143,7 @@ async function loadGraph(): Promise<GraphCache> {
     adj.get(b)!.push({ neighborId: a, gameCount: gc, classicalCount: cc, firstGameYear: fy, lastGameYear: ly });
   }
 
+  onStatus?.("Building search index…");
   cache = { adjacency: adj, bfsPlayers, loadedAt: now };
   return cache;
 }
@@ -301,13 +308,15 @@ export function findShortestPathFromGraph(
 /**
  * Production BFS: loads the lean graph, runs BFS, then enriches the short
  * returned path with full player data and edge metadata via targeted DB queries.
+ * onStatus is called at each stage so callers can stream progress to the client.
  */
 export async function findShortestPath(
   fromId: number,
   toId: number,
-  tcFilter: TimeControlFilter = "all"
+  tcFilter: TimeControlFilter = "all",
+  onStatus?: (msg: string) => void
 ): Promise<DistanceResult | null> {
-  const { adjacency: adj, bfsPlayers } = await loadGraph();
+  const { adjacency: adj, bfsPlayers } = await loadGraph(onStatus);
 
   if (fromId === toId) {
     const sql = getDb();
@@ -327,9 +336,11 @@ export async function findShortestPath(
     return { distance: 0, path: [{ player: p, game_count: null }] };
   }
 
+  onStatus?.("Searching for shortest path…");
   const rawPath = bfsRaw(adj, bfsPlayers, fromId, toId, tcFilter);
   if (!rawPath) return null;
 
+  onStatus?.("Fetching path details…");
   const sql = getDb();
 
   // Enrich: fetch full player data for path nodes only (~5-8 rows)

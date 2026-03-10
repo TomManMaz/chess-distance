@@ -14,6 +14,7 @@ export default function Home() {
   const [externalB, setExternalB] = useState<SearchResult | null | undefined>(undefined);
   const [result, setResult] = useState<DistanceResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [showExplanation, setShowExplanation] = useState(false);
   const [classicalOnly, setClassicalOnly] = useState(false);
@@ -21,28 +22,55 @@ export default function Home() {
 
   async function calculateWith(a: SearchResult, b: SearchResult, useClassicalOnly?: boolean) {
     setLoading(true);
+    setStatus("");
     setError(null);
     setResult(null);
     setTcFiltered(false);
     const tc = (useClassicalOnly ?? classicalOnly) ? "classical" : "all";
     try {
       const res = await fetch(`/api/distance?from=${a.id}&to=${b.id}&tc=${tc}`);
-      if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Failed to calculate distance");
-        setTcFiltered(!!data.tcFiltered);
-        return;
+      if (!res.body) throw new Error("No response body");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE events are separated by double newlines
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() ?? "";
+
+        for (const part of parts) {
+          let eventType = "message";
+          let data = "";
+          for (const line of part.split("\n")) {
+            if (line.startsWith("event: ")) eventType = line.slice(7).trim();
+            else if (line.startsWith("data: ")) data = line.slice(6);
+          }
+          if (eventType === "status") {
+            setStatus(data);
+          } else if (eventType === "result") {
+            const parsed = JSON.parse(data);
+            setResult(parsed);
+            const slugA = nameToSlug(a.name);
+            const slugB = nameToSlug(b.name);
+            window.history.replaceState(null, "", `/${slugA}/${slugB}`);
+          } else if (eventType === "error") {
+            const errData = JSON.parse(data);
+            setError(errData.error || "Failed to calculate distance");
+            setTcFiltered(!!errData.tcFiltered);
+          }
+        }
       }
-      const data = await res.json();
-      setResult(data);
-      // Update URL to shareable pair path (no navigation)
-      const slugA = nameToSlug(a.name);
-      const slugB = nameToSlug(b.name);
-      window.history.replaceState(null, "", `/${slugA}/${slugB}`);
     } catch {
       setError("An error occurred. Please try again.");
     } finally {
       setLoading(false);
+      setStatus("");
     }
   }
 
@@ -138,7 +166,7 @@ export default function Home() {
               />
             </div>
             <p className="mt-1.5 text-xs text-center text-[var(--text-secondary)]">
-              Searching the game graph…
+              {status || "Connecting…"}
             </p>
           </div>
         )}
