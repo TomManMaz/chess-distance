@@ -92,6 +92,16 @@ export default async function PlayerPage({ params }: Props) {
               </dd>
             </div>
           )}
+          {player.birth_year && (
+            <div className="flex gap-2">
+              <dt className="text-[var(--text-secondary)] w-36 shrink-0">Age</dt>
+              <dd className="font-medium text-[var(--board-dark)]">
+                {player.death_year
+                  ? `${player.death_year - player.birth_year} (deceased)`
+                  : `${new Date().getFullYear() - player.birth_year}`}
+              </dd>
+            </div>
+          )}
           {player.total_games != null && (
             <div className="flex gap-2">
               <dt className="text-[var(--text-secondary)] w-36 shrink-0">Recorded games</dt>
