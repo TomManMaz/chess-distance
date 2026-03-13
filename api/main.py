@@ -161,9 +161,8 @@ async def stats():
             SELECT
                 (SELECT COUNT(*) FROM players)       AS total_players,
                 (SELECT COUNT(*) FROM opponents)     AS total_opponent_pairs,
-                (SELECT SUM(game_count) FROM opponents) AS total_games,
-                (SELECT value FROM settings WHERE key = 'last_twic_issue_date' LIMIT 1)
-                    AS last_updated
+                (SELECT COALESCE(SUM(game_count), 0) FROM opponents) AS total_games,
+                (SELECT MAX(last_game_date)::text FROM opponents)    AS last_updated
         """)
     return {
         "total_players":       int(row["total_players"]),
