@@ -18,8 +18,9 @@ interface AdjEntry {
 interface GraphCache {
   adjacency: Map<number, AdjEntry[]>;
   // Lean player map — only birth/death years needed for BFS traversal.
-  // Full player data (name, federation, etc.) is fetched post-BFS for the path only.
-  bfsPlayers: Map<number, { birth_year: number | null; death_year: number | null }>;
+  // bigId preserves the original CockroachDB BigInt (19-digit unique_rowid)
+  // so enrichment queries can match the DB. Number() keys lose precision.
+  bfsPlayers: Map<number, { bigId: bigint; birth_year: number | null; death_year: number | null }>;
   loadedAt: number;
 }
 
@@ -88,9 +89,10 @@ async function loadGraph(onStatus?: (msg: string) => void): Promise<GraphCache> 
     SELECT id, birth_year, death_year FROM players
   ` as { id: number; birth_year: number | null; death_year: number | null }[];
 
-  const bfsPlayers = new Map<number, { birth_year: number | null; death_year: number | null }>();
+  const bfsPlayers = new Map<number, { bigId: bigint; birth_year: number | null; death_year: number | null }>();
   for (const row of playerRows) {
     bfsPlayers.set(Number(row.id), {
+      bigId: row.id as unknown as bigint,  // preserve original 19-digit CockroachDB ID
       birth_year: row.birth_year != null ? Number(row.birth_year) : null,
       death_year: row.death_year != null ? Number(row.death_year) : null,
     });
@@ -161,9 +163,9 @@ type ParentEntry = { parent: number; via: AdjEntry | null };
  *
  * Accepts any map whose values have birth_year / death_year (structural typing).
  */
-export function bfsRaw(
+export function bfsRaw<T extends { birth_year: number | null; death_year: number | null }>(
   adj: Map<number, AdjEntry[]>,
-  bfsPlayers: Map<number, { birth_year: number | null; death_year: number | null }>,
+  bfsPlayers: Map<number, T>,
   fromId: number,
   toId: number,
   tcFilter: TimeControlFilter = "all"
@@ -318,10 +320,15 @@ export async function findShortestPath(
 ): Promise<DistanceResult | null> {
   const { adjacency: adj, bfsPlayers } = await loadGraph(onStatus);
 
+  // Helper: map truncated Number ID → original BigInt for DB queries
+  function bigId(truncatedId: number): bigint {
+    return bfsPlayers.get(truncatedId)?.bigId ?? BigInt(truncatedId);
+  }
+
   if (fromId === toId) {
     const sql = getDb();
     const rows = await sql.unsafe<{ id: number; name: string; fide_id: number | null; federation: string | null; title: string | null; birth_year: number | null; death_year: number | null }[]>(
-      `SELECT id, name, fide_id, federation, title, birth_year, death_year FROM players WHERE id = ${fromId}`
+      `SELECT id, name, fide_id, federation, title, birth_year, death_year FROM players WHERE id = ${bigId(fromId)}`
     );
     if (!rows[0]) return null;
     const p: Player = {
@@ -344,9 +351,10 @@ export async function findShortestPath(
   const sql = getDb();
 
   // Enrich: fetch full player data for path nodes only (~5-8 rows)
-  const idList = rawPath.join(",");
+  // Use original BigInt IDs so the query matches CockroachDB's 19-digit rowids.
+  const bigIdList = rawPath.map(id => bigId(id)).join(",");
   const playerRows = await sql.unsafe<{ id: number; name: string; fide_id: number | null; federation: string | null; title: string | null; birth_year: number | null; death_year: number | null }[]>(
-    `SELECT id, name, fide_id, federation, title, birth_year, death_year FROM players WHERE id IN (${idList})`
+    `SELECT id, name, fide_id, federation, title, birth_year, death_year FROM players WHERE id IN (${bigIdList})`
   );
   const playerMap = new Map<number, Player>();
   for (const row of playerRows) {
@@ -368,8 +376,8 @@ export async function findShortestPath(
   if (rawPath.length > 1) {
     const clauses = [];
     for (let i = 0; i < rawPath.length - 1; i++) {
-      const a = Math.min(rawPath[i], rawPath[i + 1]);
-      const b = Math.max(rawPath[i], rawPath[i + 1]);
+      const a = bigId(Math.min(rawPath[i], rawPath[i + 1]));
+      const b = bigId(Math.max(rawPath[i], rawPath[i + 1]));
       clauses.push(`(player_a_id = ${a} AND player_b_id = ${b})`);
     }
     try {
