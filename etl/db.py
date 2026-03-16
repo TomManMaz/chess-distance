@@ -46,7 +46,7 @@ def _load_database_url() -> str:
                 if url:
                     return url
 
-    raise SystemExit("DATABASE_URL is not set. Pass it as an env var or put it in .env.local")
+    raise RuntimeError("DATABASE_URL is not set. Pass it as an env var or put it in .env.local")
 
 
 def get_db_url() -> str:
