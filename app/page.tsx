@@ -169,6 +169,11 @@ export default function Home() {
             <p className="mt-1.5 text-xs text-center text-[var(--text-secondary)]">
               {status || "Connecting…"}
             </p>
+            {status && status.includes("Loading") && (
+              <p className="mt-1 text-xs text-center text-[var(--text-secondary)] italic">
+                First query loads 1.3M game pairs — subsequent searches are instant.
+              </p>
+            )}
           </div>
         )}
       </div>

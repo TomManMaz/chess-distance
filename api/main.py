@@ -33,6 +33,17 @@ from api.graph import find_shortest_path, is_cache_warm
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Pre-warm the graph on startup so the first user request is instant.
+    import asyncio
+    async def warmup():
+        try:
+            pool = await get_pool()
+            from api.graph import load_graph
+            await load_graph(pool, on_status=lambda msg: print(f"[warmup] {msg}"))
+            print("[warmup] Graph loaded — ready to serve requests")
+        except Exception as e:
+            print(f"[warmup] Failed: {e}")
+    asyncio.create_task(warmup())
     yield
     await close_pool()
 
