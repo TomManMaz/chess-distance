@@ -36,13 +36,20 @@ async def lifespan(app: FastAPI):
     # Pre-warm the graph on startup so the first user request is instant.
     import asyncio
     async def warmup():
+        # Let the server start accepting requests before loading the graph
+        await asyncio.sleep(2)
+        print("[warmup] Starting graph pre-load…")
         try:
             pool = await get_pool()
             from api.graph import load_graph
-            await load_graph(pool, on_status=lambda msg: print(f"[warmup] {msg}"))
+            async def log_status(msg: str):
+                print(f"[warmup] {msg}")
+            await load_graph(pool, on_status=log_status)
             print("[warmup] Graph loaded — ready to serve requests")
         except Exception as e:
+            import traceback
             print(f"[warmup] Failed: {e}")
+            traceback.print_exc()
     asyncio.create_task(warmup())
     yield
     await close_pool()

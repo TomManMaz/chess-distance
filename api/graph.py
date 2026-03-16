@@ -41,7 +41,14 @@ class GraphCache:
 # ─── Module-level singleton ────────────────────────────────────────────────────
 
 _cache: Optional[GraphCache] = None
-_load_lock = asyncio.Lock()
+_load_lock: Optional[asyncio.Lock] = None
+
+
+def _get_lock() -> asyncio.Lock:
+    global _load_lock
+    if _load_lock is None:
+        _load_lock = asyncio.Lock()
+    return _load_lock
 
 
 def is_cache_warm() -> bool:
@@ -101,7 +108,7 @@ async def load_graph(
 ) -> GraphCache:
     global _cache
 
-    async with _load_lock:
+    async with _get_lock():
         # Double-checked locking: another coroutine may have loaded while we waited
         if is_cache_warm():
             return _cache  # type: ignore[return-value]
