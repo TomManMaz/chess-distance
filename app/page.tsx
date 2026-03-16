@@ -85,8 +85,8 @@ export default function Home() {
     try {
       // Use FIDE IDs for reliability: Carlsen=1503014, King Daniel J=400068
       const [resA, resB] = await Promise.all([
-        fetch("/api/search?q=1503014").then(r => r.json()),
-        fetch("/api/search?q=400068").then(r => r.json()),
+        fetch("https://chess-distance-production-68a4.up.railway.app/api/v2/search?q=1503014").then(r => r.json()),
+        fetch("https://chess-distance-production-68a4.up.railway.app/api/v2/search?q=400068").then(r => r.json()),
       ]);
       const carlsen: SearchResult | undefined = resA[0];
       const king: SearchResult | undefined = resB[0];
