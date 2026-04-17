@@ -19,6 +19,10 @@ import asyncpg
 CHRONO_TOLERANCE_YEARS = 10
 CACHE_TTL = 3600  # 1 hour
 
+# Cap on total path length (forward + backward layers).
+# Real chess-history chains max out at ~8; 20 prevents runaway traversal.
+MAX_BFS_DEPTH = 20
+
 
 # ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -193,8 +197,12 @@ def bfs_raw(
     frontier_fwd = [from_id]
     frontier_bwd = [to_id]
     meeting = -1
+    layers_fwd = 0
+    layers_bwd = 0
 
     while frontier_fwd and frontier_bwd:
+        if layers_fwd + layers_bwd >= MAX_BFS_DEPTH:
+            return None
         if len(frontier_fwd) <= len(frontier_bwd):
             next_f: list[int] = []
             for node in frontier_fwd:
@@ -220,6 +228,7 @@ def bfs_raw(
                 if meeting != -1:
                     break
             frontier_fwd = next_f
+            layers_fwd += 1
         else:
             next_b: list[int] = []
             for node in frontier_bwd:
@@ -245,6 +254,7 @@ def bfs_raw(
                 if meeting != -1:
                     break
             frontier_bwd = next_b
+            layers_bwd += 1
 
         if meeting != -1:
             break

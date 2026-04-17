@@ -50,15 +50,14 @@ def _load_database_url() -> str:
 
 
 def get_db_url() -> str:
-    """Get DATABASE_URL with proper SSL settings for CockroachDB.
+    """Get DATABASE_URL with proper SSL settings.
 
-    On Windows, psycopg cannot find the CockroachDB root CA automatically.
-    Fall back to the OS trust store when no explicit sslrootcert is set.
+    CockroachDB's sslmode=verify-full needs a CA; on Windows psycopg can't find
+    it, so we fall back to the OS trust store. All other providers (Fly,
+    Neon, local proxy, …) leave the URL untouched.
     """
     url = _load_database_url()
-    # Only add sslrootcert=system for CockroachDB-style URLs.
-    # Neon (and other providers) use sslmode=require which rejects sslrootcert=system.
-    if "sslrootcert" not in url and "sslmode=require" not in url:
+    if "sslmode=verify-full" in url and "sslrootcert" not in url:
         sep = "&" if "?" in url else "?"
         url = f"{url}{sep}sslrootcert=system"
     return url

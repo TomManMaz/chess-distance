@@ -1,0 +1,47 @@
+# Files/dirs that `gcloud run deploy --source .` should NOT upload.
+# Keeps the build context small and the build fast (Dockerfile.api only needs
+# api/, etl/db.py, and requirements-api.txt — everything else is dead weight).
+
+# Git & editor
+.git
+.gitignore
+.vscode
+.idea
+
+# Node / Next.js (the frontend — not shipped in this container)
+node_modules
+.next
+out
+
+# Local data & downloaded PGN archives (hundreds of MB)
+data
+data-*
+*.pgn
+*.zip
+
+# Python envs & caches
+__pycache__
+*.pyc
+.pytest_cache
+.venv
+venv
+env
+
+# Local secrets & env files
+.env
+.env.local
+.env.*.local
+
+# Tests & docs not needed at runtime
+__tests__
+tests
+docs
+
+# Other hosting manifests (unrelated)
+railway.toml
+vercel.json
+fly.toml
+
+# OS junk
+.DS_Store
+Thumbs.db

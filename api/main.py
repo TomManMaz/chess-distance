@@ -17,6 +17,7 @@ Deploy on Railway:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from contextlib import asynccontextmanager
@@ -27,6 +28,8 @@ from fastapi.responses import StreamingResponse
 
 from api.database import close_pool, get_pool
 from api.graph import find_shortest_path, is_cache_warm
+
+DISTANCE_TIMEOUT_S = 25.0
 
 
 # ─── App lifecycle ─────────────────────────────────────────────────────────────
@@ -116,7 +119,10 @@ async def distance(
             status_events.append(msg)
 
         try:
-            result = await find_shortest_path(pool, from_id, to_id, tc_filter, on_status)
+            result = await asyncio.wait_for(
+                find_shortest_path(pool, from_id, to_id, tc_filter, on_status),
+                timeout=DISTANCE_TIMEOUT_S,
+            )
 
             # Replay any status events collected during loading
             for msg in status_events:
@@ -131,8 +137,13 @@ async def distance(
                 yield sse_event("error", json.dumps({"error": error, "tcFiltered": tc_filter == "classical"}))
             else:
                 yield sse_event("result", json.dumps(result))
+        except asyncio.TimeoutError:
+            yield sse_event("error", json.dumps({
+                "error": "The search took too long. Please try again.",
+                "code": "timeout",
+            }))
         except Exception as exc:
-            yield sse_event("error", json.dumps({"error": "An error occurred. Please try again."}))
+            yield sse_event("error", json.dumps({"error": "An error occurred. Please try again.", "code": "internal"}))
             raise exc
 
     return StreamingResponse(

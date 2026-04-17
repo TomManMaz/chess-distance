@@ -6,6 +6,7 @@ import type { DistanceResult as DistanceResultType, Player } from "@/lib/types";
 import { federationFlag } from "@/lib/federation-flag";
 import { toDisplayName } from "@/lib/names";
 import { nameToSlug } from "@/lib/slug";
+import { apiUrl } from "@/lib/api-base";
 
 interface DistanceResultProps {
   result: DistanceResultType;
@@ -34,7 +35,7 @@ export default function DistanceResult({ result }: DistanceResultProps) {
   const openGames = useCallback(async (idA: number, idB: number) => {
     setModalLoading(true);
     try {
-      const res = await fetch(`/api/games?a=${idA}&b=${idB}`);
+      const res = await fetch(apiUrl("games", `a=${idA}&b=${idB}`));
       if (res.ok) setModal(await res.json());
     } finally {
       setModalLoading(false);

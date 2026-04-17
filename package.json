@@ -10,6 +10,7 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "smoke": "tsx scripts/smoke-deploy.ts",
     "download-twic": "npx tsx scripts/download-twic.ts",
     "parse-pgn": "npx tsx scripts/parse-pgn.ts",
     "build-graph": "npx tsx scripts/build-graph.ts",

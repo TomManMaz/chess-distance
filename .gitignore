@@ -44,6 +44,10 @@ next-env.d.ts
 *.pgn
 *.zip
 
+# Local logs & backups
+/logs/
+/backup/
+
 # Python
 __pycache__/
 *.py[cod]

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { StatsData } from "@/lib/types";
+import { apiUrl } from "@/lib/api-base";
 
 function ordinal(n: number): string {
   const s = n % 100;
@@ -21,7 +22,7 @@ export default function Stats() {
   const [stats, setStats] = useState<StatsData | null>(null);
 
   useEffect(() => {
-    fetch("/api/stats")
+    fetch(apiUrl("stats"))
       .then((res) => res.json())
       .then(setStats)
       .catch(() => {});

@@ -20,17 +20,23 @@ export interface PlayerData {
   total_games: number | null;
 }
 
-export async function getPlayerData(id: number): Promise<PlayerData | null> {
+export async function getPlayerData(id: bigint | number | string): Promise<PlayerData | null> {
   const sql = getDb();
+  // CockroachDB unique_rowid values exceed Number.MAX_SAFE_INTEGER. Callers may
+  // pass a BigInt (from another query), a string (from a URL path), or a small
+  // number (from tests). Normalize to BigInt so postgres.js sends int8 on the wire
+  // without precision loss; cast to `unknown as number` only to satisfy TS.
+  const bigId = typeof id === "bigint" ? id : BigInt(id);
+  const idParam = bigId as unknown as number;
   const rows = await sql<PlayerData[]>`
     SELECT p.id, p.name, p.fide_id, p.federation, p.title, p.birth_year, p.death_year,
            (SELECT COALESCE(SUM(gc), 0) FROM (
-             SELECT game_count AS gc FROM opponents WHERE player_a_id = ${id}
+             SELECT game_count AS gc FROM opponents WHERE player_a_id = ${idParam}
              UNION ALL
-             SELECT game_count AS gc FROM opponents WHERE player_b_id = ${id}
+             SELECT game_count AS gc FROM opponents WHERE player_b_id = ${idParam}
            ) _g)::int AS total_games
     FROM players p
-    WHERE p.id = ${id}
+    WHERE p.id = ${idParam}
   `;
   if (rows.length === 0) return null;
   return rows[0];

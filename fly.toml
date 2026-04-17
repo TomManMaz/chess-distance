@@ -1,0 +1,42 @@
+# Fly.io config for the FastAPI backend (`chess-distance-api`).
+#
+# Co-located in the `fra` region with chess-distance-db so the 1.3M-row graph
+# load uses Fly's free internal 6PN network instead of a public IP round-trip.
+#
+# Deploy:
+#   flyctl launch --copy-config --name chess-distance-api --region fra --no-deploy
+#   flyctl secrets set DATABASE_URL="postgres://postgres:...@chess-distance-db.flycast:5432/postgres"
+#   flyctl secrets set CORS_ORIGIN="https://chess-distance.vercel.app"
+#   flyctl deploy
+
+app              = "chess-distance-api"
+primary_region   = "fra"
+
+[build]
+  dockerfile = "Dockerfile.api"
+
+[env]
+  PORT = "8000"
+
+[http_service]
+  internal_port       = 8000
+  force_https         = true
+  auto_stop_machines  = "off"       # keep the graph cache warm (min 1 instance)
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type       = "requests"
+    soft_limit = 30
+    hard_limit = 40
+
+[[vm]]
+  size      = "shared-cpu-1x"
+  memory    = "1gb"                 # graph cache sits in RAM; 1Gi is the floor
+
+[[http_service.checks]]
+  grace_period  = "30s"
+  interval      = "15s"
+  method        = "get"
+  timeout       = "5s"
+  path          = "/api/v2/health"

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { SearchResult } from "@/lib/types";
 import { federationFlag } from "@/lib/federation-flag";
 import { toDisplayName } from "@/lib/names";
+import { apiUrl } from "@/lib/api-base";
 
 interface PlayerSearchProps {
   placeholder?: string;
@@ -41,7 +42,7 @@ export default function PlayerSearch({ placeholder = "Name or FIDE ID...", onSel
     }
     setLoading(true);
     try {
-      const res = await fetch(`https://chess-distance-production-68a4.up.railway.app/api/v2/search?q=${encodeURIComponent(q)}`);
+      const res = await fetch(apiUrl("search", `q=${encodeURIComponent(q)}`));
       const data: SearchResult[] = await res.json();
       setResults(data);
       setIsOpen(data.length > 0);

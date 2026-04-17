@@ -27,6 +27,10 @@ interface GraphCache {
 let cache: GraphCache | null = null;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+// Cap on total path length. Real chess-history paths max out at ~8 (Carlsen→Morphy);
+// 20 is a safety limit that prevents runaway traversals on disconnected subgraphs.
+export const MAX_BFS_DEPTH = 20;
+
 export function invalidateCache(): void {
   cache = null;
 }
@@ -181,8 +185,11 @@ export function bfsRaw<T extends { birth_year: number | null; death_year: number
   let frontierForward  = [fromId];
   let frontierBackward = [toId];
   let meetingNode = -1;
+  let layersForward = 0;
+  let layersBackward = 0;
 
   outer: while (frontierForward.length > 0 && frontierBackward.length > 0) {
+    if (layersForward + layersBackward >= MAX_BFS_DEPTH) return null;
     if (frontierForward.length <= frontierBackward.length) {
       const nextFrontier: number[] = [];
       for (const node of frontierForward) {
@@ -209,6 +216,7 @@ export function bfsRaw<T extends { birth_year: number | null; death_year: number
         }
       }
       frontierForward = nextFrontier;
+      layersForward++;
     } else {
       const nextFrontier: number[] = [];
       for (const node of frontierBackward) {
@@ -235,6 +243,7 @@ export function bfsRaw<T extends { birth_year: number | null; death_year: number
         }
       }
       frontierBackward = nextFrontier;
+      layersBackward++;
     }
   }
 
